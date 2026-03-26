@@ -1,0 +1,11 @@
+// tsconfig.json (في كل مجلد service)
+{
+  "extends": "../../tsconfig.json",  // يرث من الـ root
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*"]
+}
