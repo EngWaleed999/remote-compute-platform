@@ -1,0 +1,13 @@
+import type { Prisma } from '@prisma/client';
+import * as z from 'zod';
+import { LoginHistoryWhereInputObjectSchema as LoginHistoryWhereInputObjectSchema } from './objects/LoginHistoryWhereInput.schema';
+import { LoginHistoryOrderByWithAggregationInputObjectSchema as LoginHistoryOrderByWithAggregationInputObjectSchema } from './objects/LoginHistoryOrderByWithAggregationInput.schema';
+import { LoginHistoryScalarWhereWithAggregatesInputObjectSchema as LoginHistoryScalarWhereWithAggregatesInputObjectSchema } from './objects/LoginHistoryScalarWhereWithAggregatesInput.schema';
+import { LoginHistoryScalarFieldEnumSchema } from './enums/LoginHistoryScalarFieldEnum.schema';
+import { LoginHistoryCountAggregateInputObjectSchema as LoginHistoryCountAggregateInputObjectSchema } from './objects/LoginHistoryCountAggregateInput.schema';
+import { LoginHistoryMinAggregateInputObjectSchema as LoginHistoryMinAggregateInputObjectSchema } from './objects/LoginHistoryMinAggregateInput.schema';
+import { LoginHistoryMaxAggregateInputObjectSchema as LoginHistoryMaxAggregateInputObjectSchema } from './objects/LoginHistoryMaxAggregateInput.schema';
+
+export const LoginHistoryGroupBySchema: z.ZodType<Prisma.LoginHistoryGroupByArgs> = z.object({ where: LoginHistoryWhereInputObjectSchema.optional(), orderBy: z.union([LoginHistoryOrderByWithAggregationInputObjectSchema, LoginHistoryOrderByWithAggregationInputObjectSchema.array()]).optional(), having: LoginHistoryScalarWhereWithAggregatesInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), by: z.array(LoginHistoryScalarFieldEnumSchema), _count: z.union([ z.literal(true), LoginHistoryCountAggregateInputObjectSchema ]).optional(), _min: LoginHistoryMinAggregateInputObjectSchema.optional(), _max: LoginHistoryMaxAggregateInputObjectSchema.optional() }).strict() as unknown as z.ZodType<Prisma.LoginHistoryGroupByArgs>;
+
+export const LoginHistoryGroupByZodSchema = z.object({ where: LoginHistoryWhereInputObjectSchema.optional(), orderBy: z.union([LoginHistoryOrderByWithAggregationInputObjectSchema, LoginHistoryOrderByWithAggregationInputObjectSchema.array()]).optional(), having: LoginHistoryScalarWhereWithAggregatesInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), by: z.array(LoginHistoryScalarFieldEnumSchema), _count: z.union([ z.literal(true), LoginHistoryCountAggregateInputObjectSchema ]).optional(), _min: LoginHistoryMinAggregateInputObjectSchema.optional(), _max: LoginHistoryMaxAggregateInputObjectSchema.optional() }).strict();

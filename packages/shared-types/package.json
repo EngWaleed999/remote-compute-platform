@@ -16,7 +16,7 @@
       "types": "./dist/schemas.d.ts"
     },
     "./api": {
-      "types": "./dist/api.d.ts"
+      "types": "./dist/api-schema.d.ts"
     }
   },
   "scripts": {

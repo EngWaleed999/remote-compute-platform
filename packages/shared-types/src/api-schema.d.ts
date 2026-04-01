@@ -39,7 +39,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["User"];
+                        "application/json": components["schemas"]["AuthResponse"];
                     };
                 };
                 /** @description Bad request */
@@ -93,10 +93,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            accessToken?: string;
-                            refreshToken?: string;
-                        };
+                        "application/json": components["schemas"]["AuthResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -105,6 +102,58 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** تجديد Access Token */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RefreshRequest"];
+                };
+            };
+            responses: {
+                /** @description Tokens refreshed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            accessToken?: string;
+                            refreshToken?: string;
+                        };
+                    };
+                };
+                /** @description Invalid refresh token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -518,6 +567,23 @@ export interface components {
             error?: string;
             /** @example Invalid token */
             message?: string;
+        };
+        AuthResponse: {
+            /**
+             * @description JWT token صالح لـ 15 دقيقة
+             * @example eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+             */
+            accessToken?: string;
+            /**
+             * @description JWT token صالح لـ 7 أيام
+             * @example dGhpcyBpcyBhIHJlZnJlc2g...
+             */
+            refreshToken?: string;
+            user?: components["schemas"]["User"];
+        };
+        RefreshRequest: {
+            /** @description التوكن الطويل الأمد (Refresh Token) */
+            refreshToken: string;
         };
         User: {
             /** Format: uuid */

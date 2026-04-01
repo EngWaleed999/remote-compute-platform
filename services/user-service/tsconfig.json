@@ -1,4 +1,3 @@
-// tsconfig.json (في كل مجلد service)
 {
   "extends": "../../tsconfig.json",  // يرث من الـ root
   "compilerOptions": {

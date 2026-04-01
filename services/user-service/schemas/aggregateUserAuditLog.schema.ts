@@ -1,0 +1,12 @@
+import type { Prisma } from '@prisma/client';
+import * as z from 'zod';
+import { UserAuditLogOrderByWithRelationInputObjectSchema as UserAuditLogOrderByWithRelationInputObjectSchema } from './objects/UserAuditLogOrderByWithRelationInput.schema';
+import { UserAuditLogWhereInputObjectSchema as UserAuditLogWhereInputObjectSchema } from './objects/UserAuditLogWhereInput.schema';
+import { UserAuditLogWhereUniqueInputObjectSchema as UserAuditLogWhereUniqueInputObjectSchema } from './objects/UserAuditLogWhereUniqueInput.schema';
+import { UserAuditLogCountAggregateInputObjectSchema as UserAuditLogCountAggregateInputObjectSchema } from './objects/UserAuditLogCountAggregateInput.schema';
+import { UserAuditLogMinAggregateInputObjectSchema as UserAuditLogMinAggregateInputObjectSchema } from './objects/UserAuditLogMinAggregateInput.schema';
+import { UserAuditLogMaxAggregateInputObjectSchema as UserAuditLogMaxAggregateInputObjectSchema } from './objects/UserAuditLogMaxAggregateInput.schema';
+
+export const UserAuditLogAggregateSchema: z.ZodType<Prisma.UserAuditLogAggregateArgs> = z.object({ orderBy: z.union([UserAuditLogOrderByWithRelationInputObjectSchema, UserAuditLogOrderByWithRelationInputObjectSchema.array()]).optional(), where: UserAuditLogWhereInputObjectSchema.optional(), cursor: UserAuditLogWhereUniqueInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), _count: z.union([ z.literal(true), UserAuditLogCountAggregateInputObjectSchema ]).optional(), _min: UserAuditLogMinAggregateInputObjectSchema.optional(), _max: UserAuditLogMaxAggregateInputObjectSchema.optional() }).strict() as unknown as z.ZodType<Prisma.UserAuditLogAggregateArgs>;
+
+export const UserAuditLogAggregateZodSchema = z.object({ orderBy: z.union([UserAuditLogOrderByWithRelationInputObjectSchema, UserAuditLogOrderByWithRelationInputObjectSchema.array()]).optional(), where: UserAuditLogWhereInputObjectSchema.optional(), cursor: UserAuditLogWhereUniqueInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), _count: z.union([ z.literal(true), UserAuditLogCountAggregateInputObjectSchema ]).optional(), _min: UserAuditLogMinAggregateInputObjectSchema.optional(), _max: UserAuditLogMaxAggregateInputObjectSchema.optional() }).strict();

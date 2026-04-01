@@ -1,0 +1,13 @@
+import type { Prisma } from '@prisma/client';
+import * as z from 'zod';
+import { UserAuditLogWhereInputObjectSchema as UserAuditLogWhereInputObjectSchema } from './objects/UserAuditLogWhereInput.schema';
+import { UserAuditLogOrderByWithAggregationInputObjectSchema as UserAuditLogOrderByWithAggregationInputObjectSchema } from './objects/UserAuditLogOrderByWithAggregationInput.schema';
+import { UserAuditLogScalarWhereWithAggregatesInputObjectSchema as UserAuditLogScalarWhereWithAggregatesInputObjectSchema } from './objects/UserAuditLogScalarWhereWithAggregatesInput.schema';
+import { UserAuditLogScalarFieldEnumSchema } from './enums/UserAuditLogScalarFieldEnum.schema';
+import { UserAuditLogCountAggregateInputObjectSchema as UserAuditLogCountAggregateInputObjectSchema } from './objects/UserAuditLogCountAggregateInput.schema';
+import { UserAuditLogMinAggregateInputObjectSchema as UserAuditLogMinAggregateInputObjectSchema } from './objects/UserAuditLogMinAggregateInput.schema';
+import { UserAuditLogMaxAggregateInputObjectSchema as UserAuditLogMaxAggregateInputObjectSchema } from './objects/UserAuditLogMaxAggregateInput.schema';
+
+export const UserAuditLogGroupBySchema: z.ZodType<Prisma.UserAuditLogGroupByArgs> = z.object({ where: UserAuditLogWhereInputObjectSchema.optional(), orderBy: z.union([UserAuditLogOrderByWithAggregationInputObjectSchema, UserAuditLogOrderByWithAggregationInputObjectSchema.array()]).optional(), having: UserAuditLogScalarWhereWithAggregatesInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), by: z.array(UserAuditLogScalarFieldEnumSchema), _count: z.union([ z.literal(true), UserAuditLogCountAggregateInputObjectSchema ]).optional(), _min: UserAuditLogMinAggregateInputObjectSchema.optional(), _max: UserAuditLogMaxAggregateInputObjectSchema.optional() }).strict() as unknown as z.ZodType<Prisma.UserAuditLogGroupByArgs>;
+
+export const UserAuditLogGroupByZodSchema = z.object({ where: UserAuditLogWhereInputObjectSchema.optional(), orderBy: z.union([UserAuditLogOrderByWithAggregationInputObjectSchema, UserAuditLogOrderByWithAggregationInputObjectSchema.array()]).optional(), having: UserAuditLogScalarWhereWithAggregatesInputObjectSchema.optional(), take: z.number().optional(), skip: z.number().optional(), by: z.array(UserAuditLogScalarFieldEnumSchema), _count: z.union([ z.literal(true), UserAuditLogCountAggregateInputObjectSchema ]).optional(), _min: UserAuditLogMinAggregateInputObjectSchema.optional(), _max: UserAuditLogMaxAggregateInputObjectSchema.optional() }).strict();
