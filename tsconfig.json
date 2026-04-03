@@ -19,9 +19,10 @@
   },
   "include": [],
   "exclude": ["node_modules", "dist", "build"],
+  "files": [],
   "references": [
-    {"path": "./packages/shared-utils"},
     {"path": "./packages/shared-config"},
     {"path": "./packages/shared-types"},
+    {"path": "./packages/shared-utils"},
   ]
 }

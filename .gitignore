@@ -26,4 +26,8 @@ npm-debug.log*
 Thumbs.db
 
 # Prisma
-**/prisma/migrations/
+# **/prisma/migrations/
+
+sprints
+
+high_level_architecture_final

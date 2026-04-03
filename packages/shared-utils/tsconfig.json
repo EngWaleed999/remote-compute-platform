@@ -3,17 +3,20 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "declaration": true,
-    "declarationMap": true,
+    "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./src",
     "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "declaration": true,
+    "declarationMap": true,
     "sourceMap": true,
-    "baseUrl": ".",
     "composite": true,
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"],
-      "@repo/shared-config/*": ["../shared-config/*"]
+      "@repo/shared-utils/*": ["./src/*"]
     }
   },
   "include": ["src/**/*"],
