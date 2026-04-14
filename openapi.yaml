@@ -202,6 +202,21 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /auth/logout:
+    post:
+      summary: تسجيل خروج (إبطال الجلسة الحالية)
+      tags:
+        - Authentication
+      responses:
+        '204':
+          description: Logged out successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /users/me:
     get:
       summary: بياناتي

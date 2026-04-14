@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "declaration": true,
     "composite": true,
-    "baseUrl": "."
+    // "baseUrl": "."
   },
   "include": ["**/*"],
   "exclude": ["dist", "node_modules"]

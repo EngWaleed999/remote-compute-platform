@@ -3,11 +3,10 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "baseUrl": ".",
     "paths": {
-      "@repo/shared-utils": ["packages/shared-utils/src"],
-      "@repo/shared-config": ["packages/shared-config"],
-      "@repo/shared-types": ["packages/shared-types"]
+      "@repo/shared-utils": ["./packages/shared-utils/src"],
+      "@repo/shared-config": ["./packages/shared-config"],
+      "@repo/shared-types": ["./packages/shared-types"]
     },
     "strict": true,
     "esModuleInterop": true,

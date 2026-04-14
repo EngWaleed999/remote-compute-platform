@@ -14,7 +14,6 @@
     "declarationMap": true,
     "sourceMap": true,
     "composite": true,
-    "baseUrl": ".",
     "paths": {
       "@repo/shared-utils/*": ["./src/*"]
     }

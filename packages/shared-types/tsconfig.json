@@ -16,6 +16,9 @@
       "@repo/shared-config/*": ["../shared-config/*"]
     }
   },
+  "references": [
+    { "path": "../shared-config" }
+  ],
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules"]
 }

@@ -18,6 +18,5 @@ export class AppError extends Error {
     this.code = options.code || 'UNKNOWN_ERROR';
     this.isOperational = options.isOperational ?? true;
     this.isCatastrophic = options.isCatastrophic ?? false;
-    Error.captureStackTrace(this, this.constructor);
   }
 }
