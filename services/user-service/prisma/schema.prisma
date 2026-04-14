@@ -1,5 +1,7 @@
 generator client {
   provider = "prisma-client-js"
+  engineType = "library"
+  binaryTarget = ["native"] 
 }
 generator zod {
   provider = "prisma-zod-generator"

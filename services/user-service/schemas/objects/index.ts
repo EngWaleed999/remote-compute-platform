@@ -135,7 +135,6 @@ export * from './UserCountOutputTypeCountAuditLogsArgs.schema';
 export * from './UserCountOutputTypeCountLoginHistoryArgs.schema';
 export * from './UserCountOutputTypeCountSessionsArgs.schema';
 export * from './UserCountOutputTypeSelect.schema';
-//===============User Create ==========================================
 export * from './UserCreateInput.schema';
 export * from './UserCreateManyInput.schema';
 export * from './UserCreateNestedOneWithoutAuditLogsInput.schema';
@@ -147,7 +146,6 @@ export * from './UserCreateOrConnectWithoutSessionsInput.schema';
 export * from './UserCreateWithoutAuditLogsInput.schema';
 export * from './UserCreateWithoutLoginHistoryInput.schema';
 export * from './UserCreateWithoutSessionsInput.schema';
-//=====================================================================
 export * from './UserInclude.schema';
 export * from './UserMaxAggregateInput.schema';
 export * from './UserMaxOrderByAggregateInput.schema';
