@@ -27,19 +27,22 @@ const prodFormat = combine(
   errors({ stack: true }),
   json()
 );
+const transports = [
+  new winston.transports.File({
+    filename: './logs/debug.log',
+    level: 'debug',
+  }),
+  new winston.transports.File({
+    filename: './logs/info.log',
+    level: 'info',
+  }),
+];
 
 export const logger = winston.createLogger({
   level: env.NODE_ENV === 'development' ? 'debug' : 'info',
   defaultMeta: { service: 'user-service' },
   format: env.NODE_ENV === 'production' ? prodFormat : devFormat,
-  transports: [
-    new winston.transports.Console(),
-    new winston.transports.File({
-      filename: './logs/debug.log',
-      level: 'debug',
-    }),
-    new winston.transports.File({ filename: './logs/info.log', level: 'info' }),
-  ],
+  transports: transports,
   // Don't exit on uncaught exceptions — let the error handler deal with it
   exitOnError: false,
 });

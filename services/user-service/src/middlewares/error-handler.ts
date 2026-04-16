@@ -1,58 +1,47 @@
-/**
- * Centralized Error Handler Middleware
- * Catches all errors in the Express pipeline and returns structured JSON responses.
- * - AppError: returns the specified statusCode, code, and message
- * - Unknown errors: returns 500 with a generic message (no leak of internals)
- */
 import { Request, Response, NextFunction } from 'express';
 import { AppError } from '@repo/shared-utils';
 import { logger } from '../config/logger.js';
 
-/**
- * Express error-handling middleware (must have 4 parameters).
- * Place this LAST in the middleware chain.
- */
 export function errorHandler(
-  err: Error,
-  _req: Request,
+  err: Error | AppError, // تقبل النوعين
+  req: Request,
   res: Response,
-  _next: NextFunction,
+  _next: NextFunction
 ): void {
-  // Handle known operational errors
-  if (err instanceof AppError) {
+ 
+  // 1. تحديد هل الخطأ معروف (AppError) أم غير متوقع
+  const isAppError = err instanceof AppError;
+  const statusCode = isAppError ? err.statusCode : 500;
+  const errorCode = isAppError ? err.code : 'INTERNAL_SERVER_ERROR';
+ 
+  // الوصول للـ context بأمان حتى لو لم يكتشفه TS في err العادي
+  const context = isAppError ? err.context : undefined;
+
+  // 2. التسجيل الذكي في الـ Logs
+  if (statusCode >= 500) {
+    // أي خطأ 500 أو غير متوقع يذهب لـ debug.log (كـ error)
+    logger.error({
+      message: err.message,
+      code: errorCode,
+      stack: err.stack,
+      path: req.path,
+      method: req.method,
+      context: context, // سيسجل الإيميل وأي بيانات أرسلتها
+    });
+  } else {
+    // الأخطاء التشغيلية (400, 401, 409) تذهب لـ info.log (كـ warn)
     logger.warn({
       message: err.message,
-      code: err.code,
-      statusCode: err.statusCode,
-      stack: err.stack,
+      code: errorCode,
+      context: context,
     });
-
-    // Check if validation details are embedded in the name field
-    let details: unknown = undefined;
-    try {
-      if (err.name && err.name !== 'AppError') {
-        details = JSON.parse(err.name);
-      }
-    } catch {
-      // name wasn't JSON — ignore
-    }
-
-    res.status(err.statusCode).json({
-      error: err.code,
-      message: err.message,
-      ...(details ? { details } : {}),
-    });
-    return;
   }
 
-  // Handle unknown / unexpected errors
-  logger.error({
-    message: err.message || 'Unexpected error',
-    stack: err.stack,
-  });
-
-  res.status(500).json({
-    error: 'INTERNAL_SERVER_ERROR',
-    message: 'An unexpected error occurred',
+  // 3. الرد الموحد للعميل (Client Response)
+  res.status(statusCode).json({
+    error: errorCode,
+    message: isAppError ? err.message : 'An unexpected error occurred',
+    // إرسال الـ context فقط في بيئة التطوير للمساعدة في الـ Debugging
+    ...(context && process.env.NODE_ENV === 'development' ? { debug_info: context } : {}),
   });
 }

@@ -54,6 +54,7 @@ class AuthServiceClass {
       throw new AppError('Email already registered', {
         statusCode: 409,
         code: 'EMAIL_ALREADY_EXISTS',
+        context: { email: dto.email, username: dto.name },
       });
     }
 

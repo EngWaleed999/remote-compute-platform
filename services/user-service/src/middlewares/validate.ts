@@ -5,6 +5,7 @@
  */
 import { Request, Response, NextFunction } from 'express';
 import { ZodSchema } from 'zod';
+import { logger } from '../config/logger.js';
 
 type ValidationSource = 'body' | 'query' | 'params';
 

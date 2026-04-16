@@ -16,7 +16,6 @@ import { logger } from './config/logger.js';
 import { appRoutes } from './routes/index.js';
 import { errorHandler } from './middlewares/error-handler.js';
 
-
 const app: Express = express();
 
 // ═══════════════════════════════════════════════════
@@ -41,7 +40,10 @@ app.get('/health', (_req, res) => {
 // ═══════════════════════════════════════════════════
 // 4️⃣ API Routes
 // ═══════════════════════════════════════════════════
-app.use('api/v1/', appRoutes);
+app.use('/api/v1', appRoutes);
+app.get('/test', (req, res) => {
+  res.send('server Worling');
+});
 
 // ═══════════════════════════════════════════════════
 // 5️⃣ Centralized Error Handler (must be LAST)
