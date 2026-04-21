@@ -9,7 +9,6 @@
     "rootDir": "./src",
     "strict": true,
     "sourceMap": true,
-    "baseUrl": ".",
     "composite": true,
     "paths": {
       "@/*": ["./src/*"],

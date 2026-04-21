@@ -111,6 +111,147 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/restore/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * تأكيد استعادة الحساب
+         * @description يكتب كلمة المرور الجديدة
+         *      مستقبلا نقدر نضيف ميزه يستلم  كود التحقق
+         *     ثم يستعيد الحساب ويعيد تسجيل الدخول تلقائياً.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: email */
+                        email: string;
+                        /** Format: password */
+                        newPassword: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description تم الاستعادة وإعادة تسجيل الدخول */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"] & {
+                            /** @example Account restored successfully */
+                            message?: string;
+                        };
+                    };
+                };
+                /** @description كود غير صحيح أو منتهي */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description الحساب غير موجود */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description انتهت فترة السماح */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/restore/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * طلب استعادة الحساب
+         * @description حاليا يدخل الايميل للاستعادة نشاط الحساب مستقبلا يمكن اضافه ميزه
+         *     يرسل كود تحقق إلى بريد المستخدم المسجل.
+         *     يعمل فقط إذا كان الحساب في فترة السماح (30 يوم).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: email
+                         * @example user@example.com
+                         */
+                        email: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description request send to active account */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"];
+                    };
+                };
+                /** @description لا يوجد حساب محذوف بهذا الإيميل */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description انتهت فترة السماح (Grace Period Expired) */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoneError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/refresh": {
         parameters: {
             query?: never;
@@ -147,6 +288,49 @@ export interface paths {
                     };
                 };
                 /** @description Invalid refresh token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** تسجيل خروج (إبطال الجلسة الحالية) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Logged out successfully */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
                 401: {
                     headers: {
                         [name: string]: unknown;
@@ -580,6 +764,12 @@ export interface components {
              */
             refreshToken?: string;
             user?: components["schemas"]["User"];
+        };
+        GoneError: {
+            /** @example Grace period expired */
+            error?: string;
+            /** @example ACCOUNT_PERMANENTLY_DELETED */
+            code?: string;
         };
         RefreshRequest: {
             /** @description التوكن الطويل الأمد (Refresh Token) */
