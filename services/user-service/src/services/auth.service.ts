@@ -30,6 +30,7 @@ import type {
 } from '../dto/auth.dto.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '@repo/shared-utils';
+import { dot } from 'node:test/reporters';
 
 class AuthServiceClass {
   /**
@@ -81,7 +82,7 @@ class AuthServiceClass {
     await sessionRepository.create({
       userId: user.id,
       token: accessToken,
-      refreshToken,
+      refreshToken: refreshToken,
       expiresAt: getRefreshTokenExpiryDate(),
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
@@ -92,13 +93,17 @@ class AuthServiceClass {
     await sessionRepository.createLoginHistory({
       userId: user.id,
       success: true,
-      method: 'password',
+      method: 'registered',
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       deviceType: meta.deviceType,
     });
 
-    logger.info({ message: 'User registered successfully', userId: user.id });
+    logger.info({
+      message: 'User registered successfully',
+      userId: user.id,
+      email: dto.email,
+    });
 
     // 7. Return response via mapper (strips sensitive fields)
     return toAuthResponse(user, accessToken, refreshToken);
@@ -118,13 +123,47 @@ class AuthServiceClass {
    * Security: uses identical error message for wrong email/password
    * to prevent user enumeration attacks.
    */
+
+  // restoreAccount = async (data: any, meta: RequestMeta) => {
+  //   const { email } = data;
+  //   const user = await userRepository.findByEmailEx(data);
+  // };
   async login(
     dto: LoginRequestDto,
     meta: RequestMeta
   ): Promise<AuthResponseDto> {
     // 1. Find user — DO NOT reveal whether email exists
-    const user = await userRepository.findByEmail(dto.email);
+    const user = await userRepository.findActiveByEmail(dto.email);
     if (!user) {
+      //cehck: if account is delete it
+      const deleteUser = await userRepository.findDeletedByEmail(dto.email);
+
+      if (deleteUser) {
+        const canRestore = await userRepository.canRestore(deleteUser.id);
+        if (canRestore) {
+          throw new AppError(
+            'Account deleted. you can restore it within 30 days.',
+            {
+              statusCode: 403,
+              code: 'ACCOUNT_DELETED',
+              context: {
+                id: dto.id,
+                email: dto.email,
+                username: dto.name,
+              },
+            }
+          );
+        } else {
+          throw new AppError(
+            'Account permanently deleted. Create a new account.',
+            {
+              statusCode: 410, // Gone
+              code: 'ACCOUNT_PERMANENTLY_DELETED',
+            }
+          );
+        }
+      }
+
       // Record failed attempt if we can identify a userId (we can't here)
       throw new AppError('Invalid email or password', {
         statusCode: 401,
@@ -142,7 +181,7 @@ class AuthServiceClass {
       await sessionRepository.createLoginHistory({
         userId: user.id,
         success: false,
-        method: 'password',
+        method: 'failed login password',
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
         deviceType: meta.deviceType,
@@ -155,12 +194,16 @@ class AuthServiceClass {
       });
     }
 
+    if (user.deletedAt !== null) {
+      throw new AppError('Your Account is stoping');
+    }
+
     // 3. Check account status
     if (user.status !== 'ACTIVE') {
       await sessionRepository.createLoginHistory({
         userId: user.id,
         success: false,
-        method: 'password',
+        method: 'Account not active',
         ipAddress: meta.ipAddress,
         userAgent: meta.userAgent,
         failureReason: `ACCOUNT_${user.status}`,
@@ -198,7 +241,7 @@ class AuthServiceClass {
     await sessionRepository.createLoginHistory({
       userId: user.id,
       success: true,
-      method: 'password',
+      method: 'successful login',
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       deviceType: meta.deviceType,
@@ -207,6 +250,53 @@ class AuthServiceClass {
     logger.info({ message: 'User logged in', userId: user.id });
 
     return toAuthResponse(user, accessToken, refreshToken);
+  }
+
+  async requestRestore(
+    email: string
+  ): Promise<{ code: string; expiresAt: Date }> {
+    const user = await userRepository.findDeletedByEmail(email);
+
+    if (!user) {
+      throw new AppError('No deleted account found', { statusCode: 404 });
+    }
+
+    const canRestore = await userRepository.canRestore(user.id);
+    if (!canRestore) {
+      throw new AppError('Grace period expired', { statusCode: 410 });
+    }
+
+    // للتعلم: كود وهمي (في Production: SMS/Email)
+    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+    const expiresAt = new Date();
+    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+
+    // حفظ الكود (يمكنك استخدام Redis أو حقل مؤقت في DB)
+    // للتبسيط: نرجعه مباشرة في التعلم
+    return { code, expiresAt };
+  }
+
+  // تأكيد الاستعادة
+  async confirmRestore(email: string, code?: string): Promise<AuthResponseDto> {
+    const user = await userRepository.findDeletedByEmail(email);
+
+    if (!user) {
+      throw new AppError('Account not found', { statusCode: 404 });
+    }
+
+    // في التعلم: نتخطى التحقق من الكود (أو نتحقق ببساطة)
+    // في Production: التحقق من الكود المُرسل
+
+    const restored = await userRepository.restoreAccount(user.id);
+    const payload: JwtPayload = {
+      userId: user.id,
+      role: user.role,
+      email: user.email,
+    };
+    const accessToken = generateAccessToken(payload);
+    const refreshToken = generateRefreshToken(payload);
+
+    return toAuthResponse(restored, accessToken, refreshToken);
   }
 
   /**

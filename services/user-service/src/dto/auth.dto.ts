@@ -26,6 +26,7 @@ export type LoginRequestDto =
 /** Refresh request body — { refreshToken } */
 export type RefreshRequestDto = components['schemas']['RefreshRequest'];
 
+
 // ═══════════════════════════════════════════════════
 // 2️⃣ Response Types (from OpenAPI)
 // ═══════════════════════════════════════════════════
@@ -75,6 +76,14 @@ export const refreshSchema = z.object({
   refreshToken: z
     .string({ required_error: 'Refresh token is required' })
     .min(1, 'Refresh token is required'),
+});
+
+export const restoreAccountSchema = z.object({
+  email: z
+    .string({ required_error: 'Email is required' })
+    .email('Invalid email format')
+    .toLowerCase()
+    .trim(),
 });
 
 // ═══════════════════════════════════════════════════

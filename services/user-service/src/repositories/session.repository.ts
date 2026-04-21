@@ -18,6 +18,7 @@ class SessionRepository {
       where: {
         refreshToken,
         isValid: true,
+
         expiresAt: { gt: new Date() },
       },
     });

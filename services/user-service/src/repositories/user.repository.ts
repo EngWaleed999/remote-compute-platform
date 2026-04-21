@@ -13,7 +13,7 @@ class UserRepository {
    * Find a user by their unique email address.
    */
   async findByEmail(email: string): Promise<User | null> {
-    return this.db.user.findUnique({
+    return this.db.user.findFirst({
       where: { email },
     });
   }
@@ -39,11 +39,80 @@ class UserRepository {
    * Does NOT physically remove the record from the database.
    */
   async softDelete(id: string): Promise<User> {
+    const gracePeriodEnd = new Date();
+    gracePeriodEnd.setDate(gracePeriodEnd.getDate() + 30);
     return this.db.user.update({
       where: { id },
       data: {
         deletedAt: new Date(),
         status: 'DELETED',
+        gracePeriodEnd,
+      },
+    });
+  }
+
+  // search any active email
+  async findActiveByEmail(email: string): Promise<User | null> {
+    return this.db.user.findFirst({
+      where: {
+        email: email.toLowerCase().trim(),
+        deletedAt: null,
+        status: 'ACTIVE',
+      },
+    });
+  }
+
+  // search any email (to restore)
+  async findAnyEmail(email: string): Promise<User | null> {
+    return this.db.user.findFirst({
+      where: {
+        email: email.toLowerCase().trim(),
+      },
+    });
+  }
+  async findDeletedByEmail(email: string): Promise<User | null> {
+    return this.db.user.findFirst({
+      where: {
+        email: email.toLowerCase().trim(),
+        deletedAt: { not: null },
+        status: 'DELETED',
+      },
+    });
+  }
+  // Restore Account
+  async restoreAccount(id: string, newPassword?: string): Promise<User> {
+    return this.db.user.update({
+      where: { id },
+      data: {
+        deletedAt: null,
+        status: 'ACTIVE',
+        gracePeriodEnd: null,
+      },
+    });
+  }
+
+  async canRestore(id: string): Promise<boolean> {
+    const user = await this.db.user.findUnique({
+      where: { id },
+      select: { gracePeriodEnd: true, status: true },
+    });
+    if (!user || user.status !== 'DELETED' || !user.gracePeriodEnd) {
+      return false;
+    }
+    return new Date() < user.gracePeriodEnd;
+  }
+
+  async hardDelete(id: string): Promise<void> {
+    await this.db.user.delete({
+      where: { id },
+    });
+  }
+
+  async findExpiredGracePeriod(): Promise<User[]> {
+    return this.db.user.findMany({
+      where: {
+        status: 'DELETED',
+        gracePeriodEnd: { lt: new Date() },
       },
     });
   }

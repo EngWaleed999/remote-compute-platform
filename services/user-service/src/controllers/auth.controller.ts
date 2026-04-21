@@ -35,12 +35,44 @@ class AuthControllerClass {
    * POST /auth/register
    * Creates a new user account and returns tokens.
    */
-  async register(req: Request,res: Response,next: NextFunction): Promise<void> {
+  async register(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
     try {
       const dto = req.body as RegisterRequestDto;
       const meta = extractMeta(req);
       const result = await authService.register(dto, meta);
       res.status(201).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+  async requestRestore(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { email } = req.body;
+      const result = await authService.requestRestore(email);
+      res.status(200).json({
+        message: 'Your account has restore',
+        data: result,
+      });
+    } catch (error) {
+      next(error);
+    }
+  }
+  async confirmRestore(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { email, code } = req.body;
+      const result = await authService.confirmRestore(email, code);
     } catch (error) {
       next(error);
     }
@@ -91,10 +123,9 @@ class AuthControllerClass {
       const token = authHeader?.split(' ')[1];
 
       if (!token) {
-            return next(new AppError("يجب تسجيل الدخول اولا", { statusCode: 401 }));
-
+        return next(new AppError('يجب تسجيل الدخول اولا', { statusCode: 401 }));
       }
-      
+
       await authService.logout(token);
       res.status(204).send();
     } catch (error) {

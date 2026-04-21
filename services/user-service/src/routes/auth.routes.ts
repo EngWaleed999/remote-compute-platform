@@ -7,7 +7,12 @@ import { Router, type Router as RouterType } from 'express';
 import { authController } from '../controllers/auth.controller.js';
 import { authenticate } from '../middlewares/authenticate.js';
 import { validate } from '../middlewares/validate.js';
-import { registerSchema, loginSchema, refreshSchema } from '../dto/auth.dto.js';
+import {
+  registerSchema,
+  loginSchema,
+  refreshSchema,
+  restoreAccountSchema,
+} from '../dto/auth.dto.js';
 
 const router: RouterType = Router();
 
@@ -15,28 +20,38 @@ const router: RouterType = Router();
 router.post(
   '/register',
   validate(registerSchema, 'body'),
-  authController.register.bind(authController),
+  authController.register.bind(authController)
 );
 
 // POST /auth/login — public (no auth required)
 router.post(
   '/login',
   validate(loginSchema, 'body'),
-  authController.login.bind(authController),
+  authController.login.bind(authController)
 );
 
 // POST /auth/refresh — public (uses refresh token in body, not Bearer header)
 router.post(
   '/refresh',
   validate(refreshSchema, 'body'),
-  authController.refresh.bind(authController),
+  authController.refresh.bind(authController)
 );
 
 // POST /auth/logout — requires authentication
 router.post(
   '/logout',
   authenticate,
-  authController.logout.bind(authController),
+  authController.logout.bind(authController)
 );
 
+router.post(
+  '/restore/request',
+  validate(restoreAccountSchema, 'body'),
+  authController.requestRestore
+);
+router.post(
+  '/restore/confirm',
+
+  authController.confirmRestore
+);
 export { router as authRoutes };
