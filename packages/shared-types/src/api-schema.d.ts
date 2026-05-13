@@ -111,80 +111,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/auth/restore/confirm": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * تأكيد استعادة الحساب
-         * @description يكتب كلمة المرور الجديدة
-         *      مستقبلا نقدر نضيف ميزه يستلم  كود التحقق
-         *     ثم يستعيد الحساب ويعيد تسجيل الدخول تلقائياً.
-         */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": {
-                        /** Format: email */
-                        email: string;
-                        /** Format: password */
-                        newPassword: string;
-                    };
-                };
-            };
-            responses: {
-                /** @description تم الاستعادة وإعادة تسجيل الدخول */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AuthResponse"] & {
-                            /** @example Account restored successfully */
-                            message?: string;
-                        };
-                    };
-                };
-                /** @description كود غير صحيح أو منتهي */
-                400: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description الحساب غير موجود */
-                404: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-                /** @description انتهت فترة السماح */
-                410: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/auth/restore/request": {
         parameters: {
             query?: never;
@@ -219,13 +145,20 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description request send to active account */
+                /** @description تم إرسال الكود (أو إرجاعه في Development) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AuthResponse"];
+                        "application/json": {
+                            /** @example Restore code sent to your email */
+                            message?: string;
+                            /** @example 10m */
+                            expiresIn?: string;
+                            /** @example A1B2C3 */
+                            devCode?: string;
+                        };
                     };
                 };
                 /** @description لا يوجد حساب محذوف بهذا الإيميل */
@@ -233,9 +166,91 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content?: never;
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
                 /** @description انتهت فترة السماح (Grace Period Expired) */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoneError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/restore/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * تأكيد استعادة الحساب
+         * @description يستلم كود التحقق وكلمة المرور الجديدة.
+         *     يستعيد الحساب (soft-delete → active) ويسجل دخول تلقائياً.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: email */
+                        email: string;
+                        code?: string;
+                        /** Format: password */
+                        newPassword: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description تم الاستعادة وإعادة تسجيل الدخول */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"] & {
+                            /** @example Account restored successfully */
+                            message?: string;
+                        };
+                    };
+                };
+                /** @description كود غير صحيح أو منتهي */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description الحساب غير موجود أو غير قابل للاستعادة */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description انتهت فترة السماح */
                 410: {
                     headers: {
                         [name: string]: unknown;

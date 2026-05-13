@@ -3,18 +3,20 @@
    * Defines endpoints for user profile management.
    * Matches the OpenAPI spec paths: /users/me (GET, PATCH, DELETE)
    *
-   * All routes require authentication.
+   * All routes require authentication + CSRF protection on state-changing methods.
    */
   import { Router, type Router as RouterType } from 'express';
   import { userController } from '../controllers/user.controller.js';
   import { authenticate } from '../middlewares/authenticate.js';
+  import { csrfProtection } from '../middlewares/csrf.js';
   import { validate } from '../middlewares/validate.js';
   import { updateProfileSchema } from '../dto/user.dto.js';
 
   const router: RouterType = Router();
 
-  // All user routes require authentication
+  // All user routes require authentication + CSRF protection
   router.use(authenticate);
+  router.use(csrfProtection);
 
   // GET /users/me — get own profile
   router.get(

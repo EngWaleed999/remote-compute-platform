@@ -1,17 +1,23 @@
 /**
  * Auth Service
- * Core authentication business logic.
- * Orchestrates: user creation, password verification, JWT token management, session lifecycle.
+ * Core authentication business logic — production-grade security.
  *
- * Responsibilities:
- * - Register new users (hash password, create session, generate tokens)
- * - Login existing users (verify credentials, create session)
- * - Refresh tokens (rotating refresh tokens — old session revoked, new one created)
- * - Logout (revoke current session)
+ * Security features:
+ * - tokenVersion embedded in JWTs for instant invalidation
+ * - Refresh token rotation with SHA-256 hashed storage
+ * - Token family tracking for reuse detection (stolen token protection)
+ * - Restore code: hashed, time-limited (10 min), single-use
+ * - Full audit trail for all security-critical events
+ * - Redis cache invalidation on token version bumps
+ *
+ * Architecture: controller → service → repository → database
+ * This service orchestrates across: userRepository, sessionRepository, auditService
  */
 import { userRepository } from '../repositories/user.repository.js';
 import { sessionRepository } from '../repositories/session.repository.js';
+import { auditService } from './audit.service.js';
 import { hashPassword, comparePassword } from '../utils/password.util.js';
+import { hashToken, generateRestoreCode, generateCsrfToken } from '../utils/token.util.js';
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -19,18 +25,59 @@ import {
   getRefreshTokenExpiryDate,
   type JwtPayload,
 } from '../utils/jwt.util.js';
-import { toAuthResponse } from '../mappers/auth.mapper.js';
+import {
+  toAuthResponse,
+  toRestoreRequestResponse,
+  toConfirmRestoreResponse,
+} from '../mappers/auth.mapper.js';
 import type {
   RegisterRequestDto,
   LoginRequestDto,
   RefreshRequestDto,
   AuthResponseDto,
   RefreshResponseDto,
+  RestoreRequestDto,
+  RestoreResponseDto,
+  ConfirmRequestDto,
+  ConfirmResponseDto,
   RequestMeta,
 } from '../dto/auth.dto.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '@repo/shared-utils';
-import { dot } from 'node:test/reporters';
+import {
+  invalidateCachedTokenVersion,
+} from '../config/redis.js';
+import crypto from 'crypto';
+
+/** Grace period for restore verification code (minutes) */
+
+const RESTORE_CODE_EXPIRY_MINUTES = 10;
+
+/** Internal result type returned to controller (includes tokens + CSRF for cookies) */
+export interface AuthResult {
+  /** Response body to send as JSON */
+  body: AuthResponseDto;
+  /** Raw access token for cookie */
+  accessToken: string;
+  /** Raw refresh token for cookie */
+  refreshToken: string;
+  /** CSRF token for cookie */
+  csrfToken: string;
+}
+
+export interface RefreshResult {
+  body: RefreshResponseDto;
+  accessToken: string;
+  refreshToken: string;
+  csrfToken: string;
+}
+
+export interface ConfirmResult {
+  body: ConfirmResponseDto;
+  accessToken: string;
+  refreshToken: string;
+  csrfToken: string;
+}
 
 class AuthServiceClass {
   /**
@@ -40,56 +87,59 @@ class AuthServiceClass {
    * 1. Check email uniqueness
    * 2. Hash password (NEVER store plain text)
    * 3. Create user in DB
-   * 4. Generate JWT token pair
-   * 5. Create session record
-   * 6. Log successful registration in login history
-   * 7. Return AuthResponse (tokens + user)
+   * 4. Generate JWT tokens with tokenVersion
+   * 5. Hash refresh token + create session with familyId
+   * 6. Log login history + audit event
+   * 7. Return tokens + CSRF token
    */
   async register(
     dto: RegisterRequestDto,
     meta: RequestMeta
-  ): Promise<AuthResponseDto> {
+  ): Promise<AuthResult> {
     // 1. Check if email already taken
     const existingUser = await userRepository.findByEmail(dto.email);
     if (existingUser) {
       throw new AppError('Email already registered', {
         statusCode: 409,
         code: 'EMAIL_ALREADY_EXISTS',
-        context: { email: dto.email, username: dto.name },
       });
     }
 
     // 2. Hash password securely
     const passwordHash = await hashPassword(dto.password);
 
-    // 3. Create user
+    // 3. Create user 
     const user = await userRepository.create({
       email: dto.email,
       passwordHash,
       name: dto.name,
     });
 
-    // 4. Generate JWT tokens
+    // 4. Generate JWT tokens with tokenVersion
     const payload: JwtPayload = {
       userId: user.id,
       role: user.role,
       email: user.email,
+      tokenVersion: user.tokenVersion,
     };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    // 5. Create session
+    // 5. Hash refresh token + create session with family tracking
+    const refreshTokenHash = hashToken(refreshToken);
+    const familyId = crypto.randomUUID();
+
     await sessionRepository.create({
       userId: user.id,
-      token: accessToken,
-      refreshToken: refreshToken,
+      refreshTokenHash,
+      familyId,
       expiresAt: getRefreshTokenExpiryDate(),
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       deviceType: meta.deviceType,
     });
 
-    // 6. Record login history
+    // 6. Record login history + audit
     await sessionRepository.createLoginHistory({
       userId: user.id,
       success: true,
@@ -99,72 +149,70 @@ class AuthServiceClass {
       deviceType: meta.deviceType,
     });
 
+    auditService.log({
+      userId: user.id,
+      action: 'USER_REGISTERED',
+      description: 'New user account created',
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
     logger.info({
       message: 'User registered successfully',
       userId: user.id,
-      email: dto.email,
     });
 
-    // 7. Return response via mapper (strips sensitive fields)
-    return toAuthResponse(user, accessToken, refreshToken);
+    // 7. Return response with tokens for cookies
+    const csrfToken = generateCsrfToken();
+    return {
+      body: toAuthResponse(user, accessToken, refreshToken),
+      accessToken,
+      refreshToken,
+      csrfToken,
+    };
   }
 
   /**
    * Login an existing user.
    *
-   * Flow:
-   * 1. Find user by email
-   * 2. Verify password
-   * 3. Check account status (must be ACTIVE)
-   * 4. Generate JWT tokens + create session
-   * 5. Update last login timestamp
-   * 6. Log login attempt
-   *
-   * Security: uses identical error message for wrong email/password
-   * to prevent user enumeration attacks.
+   * Security:
+   * - Uses identical error for wrong email/password (prevents user enumeration)
+   * - Includes current tokenVersion in JWT payload
+   * - Hashes refresh token before DB storage
+   * - Full audit trail for success/failure
    */
-
-  // restoreAccount = async (data: any, meta: RequestMeta) => {
-  //   const { email } = data;
-  //   const user = await userRepository.findByEmailEx(data);
-  // };
   async login(
     dto: LoginRequestDto,
     meta: RequestMeta
-  ): Promise<AuthResponseDto> {
+  ): Promise<AuthResult> {
     // 1. Find user — DO NOT reveal whether email exists
     const user = await userRepository.findActiveByEmail(dto.email);
     if (!user) {
-      //cehck: if account is delete it
-      const deleteUser = await userRepository.findDeletedByEmail(dto.email);
+      // Check if account is soft-deleted — provide actionable feedback
+      const deletedUser = await userRepository.findDeletedByEmail(dto.email);
 
-      if (deleteUser) {
-        const canRestore = await userRepository.canRestore(deleteUser.id);
+      if (deletedUser) {
+        const canRestore = await userRepository.canRestore(deletedUser.id);
         if (canRestore) {
           throw new AppError(
-            'Account deleted. you can restore it within 30 days.',
+            'Account deleted. You can restore it within 30 days.',
             {
               statusCode: 403,
-              code: 'ACCOUNT_DELETED',
-              context: {
-                id: dto.id,
-                email: dto.email,
-                username: dto.name,
-              },
+              code: 'ACCOUNT_DELETED_RESTORABLE',
             }
           );
         } else {
           throw new AppError(
             'Account permanently deleted. Create a new account.',
             {
-              statusCode: 410, // Gone
+              statusCode: 410,
               code: 'ACCOUNT_PERMANENTLY_DELETED',
             }
           );
         }
       }
 
-      // Record failed attempt if we can identify a userId (we can't here)
+      // Generic error — prevent user enumeration
       throw new AppError('Invalid email or password', {
         statusCode: 401,
         code: 'INVALID_CREDENTIALS',
@@ -188,14 +236,18 @@ class AuthServiceClass {
         failureReason: 'INVALID_PASSWORD',
       });
 
+      auditService.log({
+        userId: user.id,
+        action: 'LOGIN_FAILURE',
+        description: 'Invalid password',
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+
       throw new AppError('Invalid email or password', {
         statusCode: 401,
         code: 'INVALID_CREDENTIALS',
       });
-    }
-
-    if (user.deletedAt !== null) {
-      throw new AppError('Your Account is stoping');
     }
 
     // 3. Check account status
@@ -209,35 +261,48 @@ class AuthServiceClass {
         failureReason: `ACCOUNT_${user.status}`,
       });
 
+      auditService.log({
+        userId: user.id,
+        action: 'LOGIN_FAILURE',
+        description: `Account status: ${user.status}`,
+        ipAddress: meta.ipAddress,
+        userAgent: meta.userAgent,
+      });
+
       throw new AppError(`Account is ${user.status.toLowerCase()}`, {
         statusCode: 403,
         code: 'ACCOUNT_NOT_ACTIVE',
       });
     }
 
-    // 4. Generate tokens + create session
+    // 4. Generate tokens with current tokenVersion
     const payload: JwtPayload = {
       userId: user.id,
       role: user.role,
       email: user.email,
+      tokenVersion: user.tokenVersion,
     };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
+    // 5. Hash refresh token + create session with family tracking
+    const refreshTokenHash = hashToken(refreshToken);
+    const familyId = crypto.randomUUID();
+
     await sessionRepository.create({
       userId: user.id,
-      token: accessToken,
-      refreshToken,
+      refreshTokenHash,
+      familyId,
       expiresAt: getRefreshTokenExpiryDate(),
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       deviceType: meta.deviceType,
     });
 
-    // 5. Update last login
+    // 6. Update last login
     await userRepository.updateLastLogin(user.id);
 
-    // 6. Record successful login
+    // 7. Record successful login + audit
     await sessionRepository.createLoginHistory({
       userId: user.id,
       success: true,
@@ -247,128 +312,388 @@ class AuthServiceClass {
       deviceType: meta.deviceType,
     });
 
+    auditService.log({
+      userId: user.id,
+      action: 'LOGIN_SUCCESS',
+      description: 'User logged in successfully',
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
     logger.info({ message: 'User logged in', userId: user.id });
 
-    return toAuthResponse(user, accessToken, refreshToken);
+    const csrfToken = generateCsrfToken();
+    return {
+      body: toAuthResponse(user, accessToken, refreshToken),
+      accessToken,
+      refreshToken,
+      csrfToken,
+    };
   }
 
+  /**
+   * Request account restoration.
+   *
+   * Security (hardened):
+   * - Code generated using crypto.randomBytes (not Math.random)
+   * - Code is hashed (SHA-256) before storing in DB
+   * - Code expires in 10 minutes
+   * - Code is single-use (restoreCodeUsed flag)
+   */
   async requestRestore(
-    email: string
-  ): Promise<{ code: string; expiresAt: Date }> {
-    const user = await userRepository.findDeletedByEmail(email);
-
+    dto: RestoreRequestDto,
+    meta: RequestMeta
+  ): Promise<RestoreResponseDto> {
+    // 1. Find deleted account
+    const user = await userRepository.findDeletedByEmail(dto.email);
     if (!user) {
-      throw new AppError('No deleted account found', { statusCode: 404 });
+      throw new AppError('No deleted account found with this email', {
+        statusCode: 404,
+        code: 'ACCOUNT_NOT_FOUND',
+      });
     }
 
+    // 2. Validate grace period
     const canRestore = await userRepository.canRestore(user.id);
     if (!canRestore) {
-      throw new AppError('Grace period expired', { statusCode: 410 });
+      throw new AppError('Grace period expired. Account cannot be restored.', {
+        statusCode: 410,
+        code: 'ACCOUNT_PERMANENTLY_DELETED',
+      });
     }
 
-    // للتعلم: كود وهمي (في Production: SMS/Email)
-    const code = Math.random().toString(36).substring(2, 8).toUpperCase();
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 10);
+    // 3. Generate secure verification code
+    const code = generateRestoreCode();
+    const codeHash = hashToken(code);
+    const expiresAt = new Date(
+      Date.now() + RESTORE_CODE_EXPIRY_MINUTES * 60 * 1000
+    );
 
-    // حفظ الكود (يمكنك استخدام Redis أو حقل مؤقت في DB)
-    // للتبسيط: نرجعه مباشرة في التعلم
-    return { code, expiresAt };
+    // 4. Store hashed code in DB
+    await userRepository.setRestoreCode(user.id, codeHash, expiresAt);
+
+    // 5. Audit log
+    auditService.log({
+      userId: user.id,
+      action: 'RESTORE_REQUESTED',
+      description: 'Account restore code generated',
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    logger.info({
+      message: 'Account restore requested',
+      userId: user.id,
+    });
+
+    // 6. Return mapped response (devCode only in non-production)
+    return toRestoreRequestResponse(code, RESTORE_CODE_EXPIRY_MINUTES);
   }
 
-  // تأكيد الاستعادة
-  async confirmRestore(email: string, code?: string): Promise<AuthResponseDto> {
-    const user = await userRepository.findDeletedByEmail(email);
-
+  /**
+   * Confirm account restoration.
+   *
+   * Security (hardened):
+   * - Verifies restore code hash matches stored hash
+   * - Enforces code expiry (10 minutes)
+   * - Enforces single-use (code cannot be reused)
+   * - Bumps tokenVersion to invalidate all old tokens
+   * - Revokes all existing sessions
+   * - Creates a fresh session with new token family
+   */
+  async confirmRestore(
+    dto: ConfirmRequestDto,
+    meta: RequestMeta
+  ): Promise<ConfirmResult> {
+    // 1. Find deleted account
+    const user = await userRepository.findDeletedByEmail(dto.email);
     if (!user) {
-      throw new AppError('Account not found', { statusCode: 404 });
+      throw new AppError('Account not found or not eligible for restoration', {
+        statusCode: 404,
+        code: 'ACCOUNT_NOT_FOUND',
+      });
     }
 
-    // في التعلم: نتخطى التحقق من الكود (أو نتحقق ببساطة)
-    // في Production: التحقق من الكود المُرسل
+    // 2. Validate grace period (defense in depth)
+    const canRestore = await userRepository.canRestore(user.id);
+    if (!canRestore) {
+      throw new AppError('Grace period expired. Account cannot be restored.', {
+        statusCode: 410,
+        code: 'ACCOUNT_PERMANENTLY_DELETED',
+      });
+    }
 
-    const restored = await userRepository.restoreAccount(user.id);
+    // 3. Verify restore code (hashed comparison + expiry + single-use)
+    const codeHash = hashToken(dto.code ?? '');
+    const verified = await userRepository.verifyAndConsumeRestoreCode(
+      user.id,
+      codeHash
+    );
+    if (!verified) {
+      throw new AppError('Invalid or expired restore code', {
+        statusCode: 400,
+        code: 'INVALID_RESTORE_CODE',
+      });
+    }
+
+    // 4. Hash new password
+    const passwordHash = await hashPassword(dto.newPassword);
+
+    // 5. Restore account + reset restore fields
+    const restoredUser = await userRepository.restoreAccount(
+      user.id,
+      passwordHash
+    );
+
+    // 6. Bump tokenVersion → invalidates ALL old access tokens
+    const updatedUser = await userRepository.bumpTokenVersion(restoredUser.id);
+    await invalidateCachedTokenVersion(restoredUser.id);
+
+    // 7. Revoke all old sessions
+    await sessionRepository.revokeAllUserSessions(
+      restoredUser.id,
+      'ACCOUNT_RESTORED'
+    );
+
+    // 8. Generate fresh tokens with new tokenVersion
     const payload: JwtPayload = {
-      userId: user.id,
-      role: user.role,
-      email: user.email,
+      userId: updatedUser.id,
+      role: updatedUser.role,
+      email: updatedUser.email,
+      tokenVersion: updatedUser.tokenVersion,
     };
     const accessToken = generateAccessToken(payload);
     const refreshToken = generateRefreshToken(payload);
 
-    return toAuthResponse(restored, accessToken, refreshToken);
+    // 9. Create new session with fresh family
+    const refreshTokenHash = hashToken(refreshToken);
+    const familyId = crypto.randomUUID();
+
+    await sessionRepository.create({
+      userId: updatedUser.id,
+      refreshTokenHash,
+      familyId,
+      expiresAt: getRefreshTokenExpiryDate(),
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+      deviceType: meta.deviceType,
+    });
+
+    // 10. Record login history + audit
+    await sessionRepository.createLoginHistory({
+      userId: updatedUser.id,
+      success: true,
+      method: 'account_restored',
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+      deviceType: meta.deviceType,
+    });
+
+    auditService.log({
+      userId: updatedUser.id,
+      action: 'ACCOUNT_RESTORED',
+      description: 'Account restored and new session created',
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
+
+    logger.info({
+      message: 'Account restored successfully',
+      userId: updatedUser.id,
+    });
+
+    const csrfToken = generateCsrfToken();
+    return {
+      body: toConfirmRestoreResponse(updatedUser, accessToken, refreshToken),
+      accessToken,
+      refreshToken,
+      csrfToken,
+    };
   }
 
   /**
-   * Refresh access and refresh tokens using token rotation.
+   * Refresh access and refresh tokens using secure token rotation.
    *
-   * Flow:
-   * 1. Verify refresh token signature
-   * 2. Find valid session by refresh token
-   * 3. Revoke old session (rotation — prevents token reuse)
-   * 4. Generate new token pair
-   * 5. Create new session
-   *
-   * Security: if a revoked refresh token is reused, it could indicate
-   * token theft. The old session is already invalidated.
+   * Security:
+   * 1. Hash incoming refresh token and look up valid session
+   * 2. If NOT found → check for revoked session (reuse detection)
+   * 3. If REUSE DETECTED → revoke entire token family + audit
+   * 4. If valid → revoke old session, generate new pair, same familyId
    */
-  async refresh(dto: RefreshRequestDto): Promise<RefreshResponseDto> {
-    // 1. Verify token signature
+  async refresh(
+    dto: RefreshRequestDto,
+    meta: RequestMeta
+  ): Promise<RefreshResult> {
+    // 1. Verify JWT signature
     const decoded = verifyRefreshToken(dto.refreshToken);
 
-    // 2. Find valid session
-    const session = await sessionRepository.findByRefreshToken(
-      dto.refreshToken
-    );
-    if (!session) {
+    // 2. Hash incoming token and look up valid session
+    const incomingHash = hashToken(dto.refreshToken);
+    const validSession =
+      await sessionRepository.findValidByRefreshTokenHash(incomingHash);
+
+    if (!validSession) {
+      // 3. REUSE DETECTION: check if this hash belongs to a revoked session
+      const revokedSession =
+        await sessionRepository.findAnyByRefreshTokenHash(incomingHash);
+
+      if (revokedSession && !revokedSession.isValid) {
+        // 🚨 TOKEN REUSE DETECTED — potential token theft
+        // Revoke the entire token family
+        if (revokedSession.familyId) {
+          await sessionRepository.revokeSessionFamily(revokedSession.familyId);
+        }
+        // Also revoke all user sessions as a safety measure
+        await sessionRepository.revokeAllUserSessions(
+          revokedSession.userId,
+          'REFRESH_TOKEN_REUSE_DETECTED'
+        );
+        // Bump token version to invalidate all existing access tokens
+        await userRepository.bumpTokenVersion(revokedSession.userId);
+        await invalidateCachedTokenVersion(revokedSession.userId);
+
+        // Audit: HIGH SEVERITY event
+        auditService.log({
+          userId: revokedSession.userId,
+          action: 'REFRESH_TOKEN_REUSE',
+          description:
+            'Revoked refresh token reused — potential token theft. All sessions revoked.',
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+          metadata: {
+            revokedSessionId: revokedSession.id,
+            familyId: revokedSession.familyId,
+          },
+        });
+
+        auditService.log({
+          userId: revokedSession.userId,
+          action: 'ALL_SESSIONS_REVOKED',
+          description:
+            'All sessions revoked due to refresh token reuse detection',
+          ipAddress: meta.ipAddress,
+          userAgent: meta.userAgent,
+        });
+
+        logger.warn({
+          message: '🚨 Refresh token reuse detected — all sessions revoked',
+          userId: revokedSession.userId,
+          sessionId: revokedSession.id,
+        });
+
+        throw new AppError(
+          'Security breach detected. All sessions revoked. Please re-authenticate.',
+          {
+            statusCode: 401,
+            code: 'REFRESH_TOKEN_REUSE',
+          }
+        );
+      }
+
+      // Token not found at all
       throw new AppError('Invalid or expired refresh token', {
         statusCode: 401,
         code: 'INVALID_REFRESH_TOKEN',
       });
     }
 
-    // 3. Revoke old session (token rotation)
-    await sessionRepository.revokeSession(session.id, 'TOKEN_ROTATED');
+    // 4. Happy path: revoke old session (token rotation)
+    await sessionRepository.revokeSession(validSession.id, 'TOKEN_ROTATED');
 
-    // 4. Generate new tokens
+    // 5. Get current tokenVersion for new access token
+    const currentUser = await userRepository.findById(decoded.userId);
+    if (!currentUser || currentUser.status !== 'ACTIVE') {
+      throw new AppError('User account is no longer active', {
+        statusCode: 401,
+        code: 'ACCOUNT_NOT_ACTIVE',
+      });
+    }
+
+    // 6. Generate new tokens with current tokenVersion
     const payload: JwtPayload = {
-      userId: decoded.userId,
-      role: decoded.role,
-      email: decoded.email,
+      userId: currentUser.id,
+      role: currentUser.role,
+      email: currentUser.email,
+      tokenVersion: currentUser.tokenVersion,
     };
     const newAccessToken = generateAccessToken(payload);
     const newRefreshToken = generateRefreshToken(payload);
 
-    // 5. Create new session
+    // 7. Create new session with same familyId (rotation chain)
+    const newRefreshTokenHash = hashToken(newRefreshToken);
     await sessionRepository.create({
       userId: decoded.userId,
-      token: newAccessToken,
-      refreshToken: newRefreshToken,
+      refreshTokenHash: newRefreshTokenHash,
+      familyId: validSession.familyId ?? crypto.randomUUID(),
       expiresAt: getRefreshTokenExpiryDate(),
-      ipAddress: session.ipAddress,
-      userAgent: session.userAgent,
-      deviceType: session.deviceType,
+      ipAddress: meta.ipAddress ?? validSession.ipAddress ?? undefined,
+      userAgent: meta.userAgent ?? validSession.userAgent ?? undefined,
+      deviceType: validSession.deviceType ?? undefined,
+    });
+
+    // 8. Audit
+    auditService.log({
+      userId: decoded.userId,
+      action: 'TOKEN_REFRESHED',
+      description: 'Tokens refreshed via rotation',
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
     });
 
     logger.info({ message: 'Tokens refreshed', userId: decoded.userId });
 
+    const csrfToken = generateCsrfToken();
     return {
+      body: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+      },
       accessToken: newAccessToken,
       refreshToken: newRefreshToken,
+      csrfToken,
     };
   }
 
   /**
-   * Logout — revoke the current session.
-   * Finds the session by access token and invalidates it.
+   * Logout — revoke a specific session or all sessions.
+   *
+   * Strategy: Accept optional sessionId to revoke a specific session.
+   * If no sessionId provided, revoke ALL sessions for the user.
    */
-  async logout(accessToken: string): Promise<void> {
-    const session = await sessionRepository.findByToken(accessToken);
-    if (session) {
-      await sessionRepository.revokeSession(session.id, 'USER_LOGOUT');
-      logger.info({ message: 'User logged out', sessionId: session.id });
+  async logout(
+    userId: string,
+    meta: RequestMeta,
+    sessionId?: string
+  ): Promise<void> {
+    if (sessionId) {
+      // Revoke specific session — verify it belongs to the user
+      const session = await sessionRepository.findById(sessionId);
+      if (session && session.userId === userId && session.isValid) {
+        await sessionRepository.revokeSession(session.id, 'USER_LOGOUT');
+        logger.info({
+          message: 'User logged out (specific session)',
+          userId,
+          sessionId,
+        });
+      }
+    } else {
+      // Revoke all sessions for the user
+      await sessionRepository.revokeAllUserSessions(userId, 'USER_LOGOUT');
+      logger.info({
+        message: 'User logged out (all sessions)',
+        userId,
+      });
     }
-    // If session not found, silently succeed (idempotent logout)
+
+    auditService.log({
+      userId,
+      action: 'USER_LOGOUT',
+      description: sessionId
+        ? `Session ${sessionId} revoked`
+        : 'All sessions revoked',
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+    });
   }
 }
 

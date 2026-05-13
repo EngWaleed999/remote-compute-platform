@@ -26,6 +26,13 @@ export type LoginRequestDto =
 /** Refresh request body — { refreshToken } */
 export type RefreshRequestDto = components['schemas']['RefreshRequest'];
 
+/** Restore Request request body - { email }  */
+export type RestoreRequestDto =
+  paths['/auth/restore/request']['post']['requestBody']['content']['application/json'];
+
+/** Confim Request request body - { email ,newPassword, code? }  */
+export type ConfirmRequestDto =
+  paths['/auth/restore/confirm']['post']['requestBody']['content']['application/json'];
 
 // ═══════════════════════════════════════════════════
 // 2️⃣ Response Types (from OpenAPI)
@@ -38,6 +45,13 @@ export type AuthResponseDto = components['schemas']['AuthResponse'];
 export type RefreshResponseDto =
   paths['/auth/refresh']['post']['responses']['200']['content']['application/json'];
 
+/** Restore Request response - {  message , expiresIn, devCode} */
+export type RestoreResponseDto =
+  paths['/auth/restore/request']['post']['responses']['200']['content']['application/json'];
+
+/** Confirm Response response - {email, code , newPassword} */
+export type ConfirmResponseDto =
+  paths['/auth/restore/confirm']['post']['responses']['200']['content']['application/json'];
 // ═══════════════════════════════════════════════════
 // 3️⃣ Zod Validation Schemas (business rules)
 // ═══════════════════════════════════════════════════
@@ -78,12 +92,31 @@ export const refreshSchema = z.object({
     .min(1, 'Refresh token is required'),
 });
 
-export const restoreAccountSchema = z.object({
+/** Restore request input validation — POST /auth/restore/request */
+export const restoreRequestSchema = z.object({
   email: z
     .string({ required_error: 'Email is required' })
     .email('Invalid email format')
     .toLowerCase()
     .trim(),
+});
+
+/** Confirm restore input validation — POST /auth/restore/confirm */
+export const confirmRestoreSchema = z.object({
+  email: z
+    .string({ required_error: 'Email is required' })
+    .email('Invalid email format')
+    .toLowerCase()
+    .trim(),
+
+  newPassword: z
+    .string({ required_error: 'New password is required' })
+    .min(8, 'Password must be at least 8 characters'),
+
+  code: z
+    .string()
+    .min(6, 'Code must be exactly 6 characters')
+    .max(6, 'Code must be exactly 6 characters'),
 });
 
 // ═══════════════════════════════════════════════════

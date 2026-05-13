@@ -51,6 +51,11 @@ model User {
   // Soft delete
   deletedAt          DateTime?
   gracePeriodEnd     DateTime?      @map("grace_period_end")
+  tokenVersion       Int            @default(0)
+  // Restore flow
+  restoreCodeHash       String?
+  restoreCodeExpiresAt  DateTime?
+  restoreCodeUsed       Boolean      @default(true)
   
   @@index([name,email])
   @@index([role, status])
@@ -78,8 +83,8 @@ model UserSession {
   user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   // Session
-  token        String    @unique
-  refreshToken String    @unique
+  refreshTokenHash String? @unique
+  familyId     String?    @default(uuid())
   expiresAt    DateTime
   
   // Device info
@@ -95,9 +100,10 @@ model UserSession {
   
   createdAt    DateTime  @default(now())
   lastUsedAt   DateTime  @default(now())
-  
+
+  @@index([familyId])
+  @@index([refreshTokenHash])
   @@index([userId])
-  @@index([token])
   @@index([isValid, expiresAt])
   @@index([createdAt])
   @@map("user_sessions")
@@ -165,4 +171,14 @@ enum UserAction {
   ACCOUNT_SUSPENDED
   ACCOUNT_DELETED
   PRIVACY_SETTINGS_CHANGED
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  USER_REGISTERED
+  TOKEN_REFRESHED
+  REFRESH_TOKEN_REUSE
+  USER_LOGOUT
+  RESTORE_REQUESTED
+  ACCOUNT_RESTORED
+  ALL_SESSIONS_REVOKED
+  TOKEN_VERSION_BUMPED
 }

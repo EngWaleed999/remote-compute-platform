@@ -9,6 +9,7 @@ import { Request, Response, NextFunction } from 'express';
 import { userService } from '../services/user.service.js';
 import type { UpdateProfileRequestDto } from '../dto/user.dto.js';
 import { AppError } from '@repo/shared-utils';
+import { clearAuthCookies } from '../utils/cookie.util.js';
 
 class UserControllerClass {
   /**
@@ -18,7 +19,7 @@ class UserControllerClass {
   async getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const userId = req.user?.userId;
-      if (!userId) throw new AppError('لست مسجل', { statusCode: 401 });
+      if (!userId) throw new AppError('Authentication required', { statusCode: 401 });
       const result = await userService.getMe(userId);
       res.status(200).json(result);
     } catch (error) {
@@ -48,6 +49,7 @@ class UserControllerClass {
   /**
    * DELETE /users/me
    * Soft-deletes the authenticated user's account.
+   * Clears all auth cookies after deletion.
    */
   async deleteMe(
     req: Request,
@@ -56,7 +58,12 @@ class UserControllerClass {
   ): Promise<void> {
     try {
       const userId = req.user!.userId;
-      await userService.deleteMe(userId);
+      const ipAddress = req.ip || req.socket.remoteAddress || 'unknown';
+      await userService.deleteMe(userId, ipAddress);
+
+      // Clear auth cookies — user is now logged out
+      clearAuthCookies(res);
+
       res.status(204).send();
     } catch (error) {
       next(error);

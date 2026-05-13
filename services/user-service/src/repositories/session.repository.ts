@@ -1,50 +1,84 @@
 /**
  * Session Repository
- * Extends BaseRepository for UserSession and LoginHistory database operations.
- * Handles session CRUD, revocation, and login attempt logging.
+ * Database access layer for UserSession and LoginHistory operations.
+ * Handles session CRUD, revocation, token family tracking, and reuse detection.
+ *
+ * Security changes (production upgrade):
+ * - Refresh tokens stored as SHA-256 hashes (not plaintext)
+ * - Token family tracking via familyId for refresh token rotation
+ * - Reuse detection: findRevokedByRefreshTokenHash() for stolen token detection
+ * - Access tokens no longer stored in DB (stateless JWTs)
  */
-import { UserSession, LoginHistory, User, Prisma } from '@prisma/client';
+import { UserSession, LoginHistory, Prisma } from '@prisma/client';
 import { prisma } from '../config/prisma.js';
 
 class SessionRepository {
   constructor(private db = prisma) {}
 
+  // ═══════════════════════════════════════════════════
+  // Session CRUD
+  // ═══════════════════════════════════════════════════
+
   /**
-   * Find a valid session by its refresh token.
-   * Only returns sessions that are still valid and not expired.
+   * Create a new session with a hashed refresh token.
+   * The familyId groups related sessions for rotation tracking.
    */
-  async findByRefreshToken(refreshToken: string): Promise<UserSession | null> {
+  async create(data: {
+    userId: string;
+    refreshTokenHash: string;
+    familyId: string;
+    expiresAt: Date;
+    ipAddress?: string;
+    userAgent?: string;
+    deviceType?: string;
+  }): Promise<UserSession> {
+    return this.db.userSession.create({ data });
+  }
+
+  /**
+   * Find a VALID (not revoked, not expired) session by its hashed refresh token.
+   * Used during normal refresh flow.
+   */
+  async findValidByRefreshTokenHash(
+    refreshTokenHash: string
+  ): Promise<UserSession | null> {
     return this.db.userSession.findFirst({
       where: {
-        refreshToken,
+        refreshTokenHash,
         isValid: true,
-
         expiresAt: { gt: new Date() },
       },
     });
   }
 
-  async create(
-    data: Prisma.UserSessionUncheckedCreateInput
-  ): Promise<UserSession> {
-    return this.db.userSession.create({ data });
-  }
-
   /**
-   * Find a valid session by its access token.
+   * Find ANY session (including revoked) by its hashed refresh token.
+   * Used for reuse detection — if a revoked token is presented,
+   * it indicates potential token theft.
    */
-  async findByToken(token: string): Promise<UserSession | null> {
+  async findAnyByRefreshTokenHash(
+    refreshTokenHash: string
+  ): Promise<UserSession | null> {
     return this.db.userSession.findFirst({
-      where: {
-        token,
-        isValid: true,
-      },
+      where: { refreshTokenHash },
     });
   }
 
   /**
+   * Find a specific session by its ID.
+   * Used for targeted session revocation (logout with sessionId).
+   */
+  async findById(id: string): Promise<UserSession | null> {
+    return this.db.userSession.findUnique({ where: { id } });
+  }
+
+  // ═══════════════════════════════════════════════════
+  // Session Revocation
+  // ═══════════════════════════════════════════════════
+
+  /**
    * Revoke a specific session by setting isValid to false.
-   * Records the revocation timestamp and reason.
+   * Records the revocation timestamp and reason for audit trail.
    */
   async revokeSession(id: string, reason: string): Promise<UserSession> {
     return this.db.userSession.update({
@@ -59,18 +93,44 @@ class SessionRepository {
 
   /**
    * Revoke all active sessions for a user.
-   * Used during logout-all, password change, or account deletion.
+   * Used during: password change, account deletion, forced re-authentication.
    */
-  async revokeAllUserSessions(userId: string): Promise<void> {
+  async revokeAllUserSessions(
+    userId: string,
+    reason = 'ALL_SESSIONS_REVOKED'
+  ): Promise<void> {
     await this.db.userSession.updateMany({
       where: { userId, isValid: true },
       data: {
         isValid: false,
         revokedAt: new Date(),
-        revokedReason: 'ALL_SESSIONS_REVOKED',
+        revokedReason: reason,
       },
     });
   }
+
+  /**
+   * Revoke all sessions in a token family.
+   * Triggered when refresh token reuse is detected — indicates token theft.
+   * Revokes the entire rotation chain to force re-authentication.
+   */
+  async revokeSessionFamily(
+    familyId: string,
+    reason = 'REFRESH_TOKEN_REUSE_DETECTED'
+  ): Promise<void> {
+    await this.db.userSession.updateMany({
+      where: { familyId, isValid: true },
+      data: {
+        isValid: false,
+        revokedAt: new Date(),
+        revokedReason: reason,
+      },
+    });
+  }
+
+  // ═══════════════════════════════════════════════════
+  // Login History
+  // ═══════════════════════════════════════════════════
 
   /**
    * Record a login attempt (success or failure) in the login history.

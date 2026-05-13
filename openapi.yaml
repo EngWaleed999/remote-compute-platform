@@ -181,50 +181,6 @@ paths:
         '401':
           description: Unauthorized
 
-  /auth/restore/confirm:
-    post:
-      tags: Account Recovery
-      summary: تأكيد استعادة الحساب
-      description: |
-        يكتب كلمة المرور الجديدة
-         مستقبلا نقدر نضيف ميزه يستلم  كود التحقق 
-        ثم يستعيد الحساب ويعيد تسجيل الدخول تلقائياً.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [email, newPassword]
-              properties:
-                email:
-                  type: string
-                  format: email
-
-                newPassword:
-                  type: string
-                  minLength: 8
-                  format: password
-      responses:
-        '200':
-          description: تم الاستعادة وإعادة تسجيل الدخول
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/AuthResponse'
-                  - type: object
-                    properties:
-                      message:
-                        type: string
-                        example: 'Account restored successfully'
-        '400':
-          description: كود غير صحيح أو منتهي
-        '404':
-          description: الحساب غير موجود
-        '410':
-          description: انتهت فترة السماح
-
   /auth/restore/request:
     post:
       tags:
@@ -248,15 +204,90 @@ paths:
                   example: 'user@example.com'
       responses:
         '200':
-          description: request send to active account
+          description: تم إرسال الكود (أو إرجاعه في Development)
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/AuthResponse'
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Restore code sent to your email'
+                  expiresIn:
+                    type: string
+                    example: '10m'
+                  devCode: # ← يُعرض فقط في Development
+                    type: string
+                    example: 'A1B2C3'
+
         '404':
           description: لا يوجد حساب محذوف بهذا الإيميل
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '410':
           description: انتهت فترة السماح (Grace Period Expired)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoneError'
+
+  /auth/restore/confirm:
+    post:
+      tags:
+        - Account Recovery
+      summary: تأكيد استعادة الحساب
+      description: |
+        يستلم كود التحقق وكلمة المرور الجديدة.
+        يستعيد الحساب (soft-delete → active) ويسجل دخول تلقائياً.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, newPassword]
+              properties:
+                email:
+                  type: string
+                  format: email
+                code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                newPassword:
+                  type: string
+                  minLength: 8
+                  format: password
+      responses:
+        '200':
+          description: تم الاستعادة وإعادة تسجيل الدخول
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AuthResponse'
+                  - type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 'Account restored successfully'
+        '400':
+          description: كود غير صحيح أو منتهي
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '404':
+          description: الحساب غير موجود أو غير قابل للاستعادة
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: انتهت فترة السماح
           content:
             application/json:
               schema:
