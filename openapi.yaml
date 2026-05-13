@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: System API Documentation
+  title: remote-compute-platform
   description: توثيق شامل لواجهات برمجة التطبيقات (APIs) المختلفة المتاحة ضمن النظام.
   version: 1.0.0
 servers:
@@ -20,10 +20,41 @@ components:
       properties:
         error:
           type: string
-          example: "Unauthorized access"
+          example: 'Unauthorized access'
         message:
           type: string
-          example: "Invalid token"
+          example: 'Invalid token'
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: JWT token صالح لـ 15 دقيقة
+          example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+        refreshToken:
+          type: string
+          description: JWT token صالح لـ 7 أيام
+          example: 'dGhpcyBpcyBhIHJlZnJlc2g...'
+        user:
+          $ref: '#/components/schemas/User'
+    GoneError:
+      type: object
+      properties:
+        error:
+          type: string
+          example: 'Grace period expired'
+        code:
+          type: string
+          example: 'ACCOUNT_PERMANENTLY_DELETED'
+
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          description: التوكن الطويل الأمد (Refresh Token)
 
     User:
       type: object
@@ -106,18 +137,18 @@ paths:
                 name:
                   type: string
       responses:
-        "201":
+        '201':
           description: Created successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
-        "400":
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
           description: Bad request
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: '#/components/schemas/Error'
 
   /auth/login:
     post:
@@ -141,8 +172,142 @@ paths:
                   format: password
                   minLength: 8
       responses:
-        "200":
+        '200':
           description: Successful login
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Unauthorized
+
+  /auth/restore/request:
+    post:
+      tags:
+        - Account Recovery
+      summary: طلب استعادة الحساب
+      description: |
+        حاليا يدخل الايميل للاستعادة نشاط الحساب مستقبلا يمكن اضافه ميزه
+        يرسل كود تحقق إلى بريد المستخدم المسجل.
+        يعمل فقط إذا كان الحساب في فترة السماح (30 يوم).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: 'user@example.com'
+      responses:
+        '200':
+          description: تم إرسال الكود (أو إرجاعه في Development)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Restore code sent to your email'
+                  expiresIn:
+                    type: string
+                    example: '10m'
+                  devCode: # ← يُعرض فقط في Development
+                    type: string
+                    example: 'A1B2C3'
+
+        '404':
+          description: لا يوجد حساب محذوف بهذا الإيميل
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: انتهت فترة السماح (Grace Period Expired)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoneError'
+
+  /auth/restore/confirm:
+    post:
+      tags:
+        - Account Recovery
+      summary: تأكيد استعادة الحساب
+      description: |
+        يستلم كود التحقق وكلمة المرور الجديدة.
+        يستعيد الحساب (soft-delete → active) ويسجل دخول تلقائياً.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, newPassword]
+              properties:
+                email:
+                  type: string
+                  format: email
+                code:
+                  type: string
+                  minLength: 6
+                  maxLength: 6
+                newPassword:
+                  type: string
+                  minLength: 8
+                  format: password
+      responses:
+        '200':
+          description: تم الاستعادة وإعادة تسجيل الدخول
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/AuthResponse'
+                  - type: object
+                    properties:
+                      message:
+                        type: string
+                        example: 'Account restored successfully'
+        '400':
+          description: كود غير صحيح أو منتهي
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+        '404':
+          description: الحساب غير موجود أو غير قابل للاستعادة
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '410':
+          description: انتهت فترة السماح
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoneError'
+
+  /auth/refresh:
+    post:
+      summary: تجديد Access Token
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Tokens refreshed
           content:
             application/json:
               schema:
@@ -152,8 +317,26 @@ paths:
                     type: string
                   refreshToken:
                     type: string
-        "401":
+        '401':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /auth/logout:
+    post:
+      summary: تسجيل خروج (إبطال الجلسة الحالية)
+      tags:
+        - Authentication
+      responses:
+        '204':
+          description: Logged out successfully
+        '401':
           description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /users/me:
     get:
@@ -161,13 +344,13 @@ paths:
       tags:
         - Users
       responses:
-        "200":
+        '200':
           description: User profile details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
-        "401":
+                $ref: '#/components/schemas/User'
+        '401':
           description: Unauthorized
     patch:
       summary: تحديث بياناتي
@@ -183,18 +366,18 @@ paths:
                 name:
                   type: string
       responses:
-        "200":
+        '200':
           description: Updated successfully
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: '#/components/schemas/User'
     delete:
       summary: حذف حسابي
       tags:
         - Users
       responses:
-        "204":
+        '204':
           description: Deleted successfully
 
   # ==========================================
@@ -217,14 +400,14 @@ paths:
             type: integer
             default: 10
       responses:
-        "200":
+        '200':
           description: List of bookings
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Booking"
+                  $ref: '#/components/schemas/Booking'
     post:
       summary: إنشاء حجز جديد
       tags:
@@ -247,12 +430,12 @@ paths:
                   minimum: 1
                   maximum: 24
       responses:
-        "201":
+        '201':
           description: Booking created
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Booking"
+                $ref: '#/components/schemas/Booking'
 
   /bookings/{id}:
     get:
@@ -266,13 +449,13 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: Booking details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Booking"
-        "404":
+                $ref: '#/components/schemas/Booking'
+        '404':
           description: Booking not found
 
   /bookings/{id}/cancel:
@@ -287,12 +470,12 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: Booking cancelled
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Booking"
+                $ref: '#/components/schemas/Booking'
 
   # ==========================================
   # 3️⃣ MACHINE SERVICE
@@ -303,14 +486,14 @@ paths:
       tags:
         - Machines
       responses:
-        "200":
+        '200':
           description: List of machines
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Machine"
+                  $ref: '#/components/schemas/Machine'
     post:
       summary: تسجيل جهاز جديد (المالك/المسؤول)
       tags:
@@ -328,12 +511,12 @@ paths:
                 specs:
                   type: object
       responses:
-        "201":
+        '201':
           description: Machine registered
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Machine"
+                $ref: '#/components/schemas/Machine'
 
   /machines/{id}:
     get:
@@ -347,13 +530,13 @@ paths:
           schema:
             type: string
       responses:
-        "200":
+        '200':
           description: Machine details
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Machine"
-        "404":
+                $ref: '#/components/schemas/Machine'
+        '404':
           description: Machine not found
     patch:
       summary: تحديث جهاز (المالك/المسؤول)
@@ -377,12 +560,12 @@ paths:
                 status:
                   type: string
       responses:
-        "200":
+        '200':
           description: Machine updated
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Machine"
+                $ref: '#/components/schemas/Machine'
     delete:
       summary: حذف جهاز (المالك/المسؤول)
       tags:
@@ -394,5 +577,5 @@ paths:
           schema:
             type: string
       responses:
-        "204":
+        '204':
           description: Machine deleted
