@@ -14,9 +14,8 @@
 
   const router: RouterType = Router();
 
-  // All user routes require authentication + CSRF protection
-  router.use(authenticate);
-  router.use(csrfProtection);
+  // All user routes require authentication
+  router.use(authenticate); 
 
   // GET /users/me — get own profile
   router.get(
@@ -27,6 +26,7 @@
   // PATCH /users/me — update own profile
   router.patch(
     '/me',
+    csrfProtection,
     validate(updateProfileSchema, 'body'),
     userController.updateMe.bind(userController),
   );
@@ -34,6 +34,7 @@
   // DELETE /users/me — soft-delete own account
   router.delete(
     '/me',
+    csrfProtection,
     userController.deleteMe.bind(userController),
   );
 

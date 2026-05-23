@@ -52,7 +52,7 @@ export const globalLimiter = createLimiter({
  * Prevents brute force attacks and credential stuffing.
  */
 export const authLimiter = createLimiter({
-  limit: 10,
+  limit: 20,
   message: {
     error: 'Too many authentication attempts',
     message: 'Please try again after 15 minutes.',

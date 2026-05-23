@@ -82,6 +82,7 @@ class UserRepository {
     });
   }
 
+
   async canRestore(id: string): Promise<boolean> {
     const user = await this.db.user.findUnique({
       where: { id },
