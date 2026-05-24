@@ -344,22 +344,24 @@ class AuthServiceClass {
     dto: RestoreRequestDto,
     meta: RequestMeta
   ): Promise<RestoreResponseDto> {
-    // 1. Find deleted account
-    const user = await userRepository.findDeletedByEmail(dto.email);
+    // 1. Find account by email (active OR deleted)
+    const user = await userRepository.findByEmail(dto.email);
     if (!user) {
-      throw new AppError('No deleted account found with this email', {
-        statusCode: 404,
-        code: 'ACCOUNT_NOT_FOUND',
+      throw new AppError('If this email is registered, you will receive a verification code.', {
+        statusCode: 200,
+        code: 'RESET_CODE_SENT',
       });
     }
 
-    // 2. Validate grace period
-    const canRestore = await userRepository.canRestore(user.id);
-    if (!canRestore) {
-      throw new AppError('Grace period expired. Account cannot be restored.', {
-        statusCode: 410,
-        code: 'ACCOUNT_PERMANENTLY_DELETED',
-      });
+    // 2. If deleted, validate grace period
+    if (user.status === 'DELETED') {
+      const canRestore = await userRepository.canRestore(user.id);
+      if (!canRestore) {
+        throw new AppError('Grace period expired. Account cannot be restored.', {
+          statusCode: 410,
+          code: 'ACCOUNT_PERMANENTLY_DELETED',
+        });
+      }
     }
 
     // 3. Generate secure verification code
@@ -405,22 +407,24 @@ class AuthServiceClass {
     dto: ConfirmRequestDto,
     meta: RequestMeta
   ): Promise<ConfirmResult> {
-    // 1. Find deleted account
-    const user = await userRepository.findDeletedByEmail(dto.email);
+    // 1. Find account (active OR deleted)
+    const user = await userRepository.findByEmail(dto.email);
     if (!user) {
-      throw new AppError('Account not found or not eligible for restoration', {
-        statusCode: 404,
-        code: 'ACCOUNT_NOT_FOUND',
+      throw new AppError('Invalid request', {
+        statusCode: 400,
+        code: 'INVALID_REQUEST',
       });
     }
 
-    // 2. Validate grace period (defense in depth)
-    const canRestore = await userRepository.canRestore(user.id);
-    if (!canRestore) {
-      throw new AppError('Grace period expired. Account cannot be restored.', {
-        statusCode: 410,
-        code: 'ACCOUNT_PERMANENTLY_DELETED',
-      });
+    // 2. Only check grace period if account is deleted
+    if (user.status === 'DELETED') {
+      const canRestore = await userRepository.canRestore(user.id);
+      if (!canRestore) {
+        throw new AppError('Grace period expired. Account cannot be restored.', {
+          statusCode: 410,
+          code: 'ACCOUNT_PERMANENTLY_DELETED',
+        });
+      }
     }
 
     // 3. Verify restore code (hashed comparison + expiry + single-use)
@@ -439,20 +443,28 @@ class AuthServiceClass {
     // 4. Hash new password
     const passwordHash = await hashPassword(dto.newPassword);
 
-    // 5. Restore account + reset restore fields
-    const restoredUser = await userRepository.restoreAccount(
-      user.id,
-      passwordHash
-    );
+    // 5. Restore if deleted, OR just update password if active
+    let updatedUserId = user.id;
+    if (user.status === 'DELETED') {
+      const restoredUser = await userRepository.restoreAccount(user.id, passwordHash);
+      updatedUserId = restoredUser.id;
+    } else {
+      await userRepository.update(user.id, { 
+        passwordHash,
+        restoreCodeHash: null,
+        restoreCodeExpiresAt: null,
+        restoreCodeUsed: true,
+      });
+    }
 
     // 6. Bump tokenVersion → invalidates ALL old access tokens
-    const updatedUser = await userRepository.bumpTokenVersion(restoredUser.id);
-    await invalidateCachedTokenVersion(restoredUser.id);
+    const updatedUser = await userRepository.bumpTokenVersion(updatedUserId);
+    await invalidateCachedTokenVersion(updatedUserId);
 
     // 7. Revoke all old sessions
     await sessionRepository.revokeAllUserSessions(
-      restoredUser.id,
-      'ACCOUNT_RESTORED'
+      updatedUserId,
+      user.status === 'DELETED' ? 'ACCOUNT_RESTORED' : 'PASSWORD_CHANGED'
     );
 
     // 8. Generate fresh tokens with new tokenVersion
@@ -483,7 +495,7 @@ class AuthServiceClass {
     await sessionRepository.createLoginHistory({
       userId: updatedUser.id,
       success: true,
-      method: 'account_restored',
+      method: user.status === 'DELETED' ? 'account_restored' : 'password_reset',
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
       deviceType: meta.deviceType,
@@ -491,14 +503,16 @@ class AuthServiceClass {
 
     auditService.log({
       userId: updatedUser.id,
-      action: 'ACCOUNT_RESTORED',
-      description: 'Account restored and new session created',
+      action: user.status === 'DELETED' ? 'ACCOUNT_RESTORED' : 'PASSWORD_CHANGED',
+      description: user.status === 'DELETED'
+        ? 'Account restored and new session created'
+        : 'Password reset via verification code',
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
     });
 
     logger.info({
-      message: 'Account restored successfully',
+      message: user.status === 'DELETED' ? 'Account restored successfully' : 'Password reset successfully',
       userId: updatedUser.id,
     });
 
