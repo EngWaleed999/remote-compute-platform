@@ -16,13 +16,13 @@
       "types": "./dist/schemas.d.ts"
     },
     "./api": {
-      "types": "./dist/api.d.ts"
+      "types": "./dist/api-schema.d.ts"
     }
   },
   "scripts": {
     "generate": "openapi-typescript ../../openapi.yaml -o ./src/api-schema.d.ts",
-    "build": "tsc",
-    "dev": "tsc --watch",
+    "build": "pnpm run generate && tsc",
+    "dev": "pnpm run generate && tsc --watch",
     "clean": "rm -rf dist"
   },
   "dependencies": {

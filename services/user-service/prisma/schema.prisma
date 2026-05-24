@@ -1,0 +1,184 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+  binaryTarget = ["native"] 
+}
+generator zod {
+  provider = "prisma-zod-generator"
+  output = "../schemas"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+// pnpm prisma migrate dev --name init
+// pnpm prisma generate
+// pnpm prisma studio
+// pnpm prisma validate
+// ==================== USER ====================
+model User {
+  id                 String         @id @default(uuid())
+  email              String         
+  passwordHash       String
+  name               String?
+  
+  // Profile
+  avatarUrl          String?
+  phone              String?
+  timezone           String         @default("UTC")
+  
+  // Security
+  role               UserRole       @default(USER)
+  status             UserStatus     @default(ACTIVE)
+  emailVerified      Boolean        @default(false)
+  twoFactorEnabled   Boolean        @default(false)
+  twoFactorSecret    String?
+  
+  // Billing
+  defaultPaymentMethodId String?
+  stripeCustomerId   String?
+  
+  // Relations
+  sessions           UserSession[]
+  loginHistory       LoginHistory[]
+  auditLogs          UserAuditLog[]
+  
+  // Metadata
+  lastLoginAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  
+  // Soft delete
+  deletedAt          DateTime?
+  gracePeriodEnd     DateTime?      @map("grace_period_end")
+  tokenVersion       Int            @default(0)
+  // Restore flow
+  restoreCodeHash       String?
+  restoreCodeExpiresAt  DateTime?
+  restoreCodeUsed       Boolean      @default(true)
+  
+  @@index([name,email])
+  @@index([role, status])
+  @@map("users")
+} 
+
+enum UserRole {
+  USER
+  ADMIN
+  OWNER
+  SUPPORT
+} 
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  PENDING_VERIFICATION
+  DELETED
+} 
+
+// ==================== USER SESSION ====================
+model UserSession {
+  id           String    @id @default(uuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Session
+  refreshTokenHash String? @unique
+  familyId     String?    @default(uuid())
+  expiresAt    DateTime
+  
+  // Device info
+  ipAddress    String?
+  userAgent    String?
+  deviceType   String?   // mobile, desktop, tablet
+  location     String?
+  
+  // Status
+  isValid      Boolean   @default(true)
+  revokedAt    DateTime?
+  revokedReason String?
+  
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime  @default(now())
+
+  @@index([familyId])
+  @@index([refreshTokenHash])
+  @@index([userId])
+  @@index([isValid, expiresAt])
+  @@index([createdAt])
+  @@map("user_sessions")
+} 
+
+// ==================== LOGIN HISTORY ====================
+model LoginHistory {
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Attempt
+  success     Boolean
+  method      String    // password, oauth, 2fa
+  
+  // Device
+  ipAddress   String
+  userAgent   String?
+  deviceType  String?
+  location    String?
+  
+  // Failure reason
+  failureReason String?
+  
+  createdAt   DateTime  @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([ipAddress])
+  @@index([createdAt])
+  @@map("login_history")
+} 
+
+// ==================== USER AUDIT LOG ====================
+model UserAuditLog {
+  id          String     @id @default(uuid())
+  userId      String
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  action      UserAction
+  description String?
+  
+  // Changes
+  oldValues   Json?
+  newValues   Json?
+  
+  // Context
+  ipAddress   String?
+  userAgent   String?
+  requestId   String?
+  
+  createdAt   DateTime   @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@index([createdAt])
+  @@map("user_audit_logs")
+} 
+
+enum UserAction {
+  PROFILE_UPDATED
+  PASSWORD_CHANGED
+  EMAIL_CHANGED
+  TWO_FACTOR_ENABLED
+  TWO_FACTOR_DISABLED
+  ACCOUNT_SUSPENDED
+  ACCOUNT_DELETED
+  PRIVACY_SETTINGS_CHANGED
+  LOGIN_SUCCESS
+  LOGIN_FAILURE
+  USER_REGISTERED
+  TOKEN_REFRESHED
+  REFRESH_TOKEN_REUSE
+  USER_LOGOUT
+  RESTORE_REQUESTED
+  ACCOUNT_RESTORED
+  ALL_SESSIONS_REVOKED
+  TOKEN_VERSION_BUMPED
+}

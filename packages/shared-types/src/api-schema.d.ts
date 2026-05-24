@@ -39,7 +39,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["User"];
+                        "application/json": components["schemas"]["AuthResponse"];
                     };
                 };
                 /** @description Bad request */
@@ -93,10 +93,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": {
-                            accessToken?: string;
-                            refreshToken?: string;
-                        };
+                        "application/json": components["schemas"]["AuthResponse"];
                     };
                 };
                 /** @description Unauthorized */
@@ -105,6 +102,257 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/restore/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * طلب استعادة الحساب
+         * @description حاليا يدخل الايميل للاستعادة نشاط الحساب مستقبلا يمكن اضافه ميزه
+         *     يرسل كود تحقق إلى بريد المستخدم المسجل.
+         *     يعمل فقط إذا كان الحساب في فترة السماح (30 يوم).
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /**
+                         * Format: email
+                         * @example user@example.com
+                         */
+                        email: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description تم إرسال الكود (أو إرجاعه في Development) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example Restore code sent to your email */
+                            message?: string;
+                            /** @example 10m */
+                            expiresIn?: string;
+                            /** @example A1B2C3 */
+                            devCode?: string;
+                        };
+                    };
+                };
+                /** @description لا يوجد حساب محذوف بهذا الإيميل */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description انتهت فترة السماح (Grace Period Expired) */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoneError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/restore/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * تأكيد استعادة الحساب
+         * @description يستلم كود التحقق وكلمة المرور الجديدة.
+         *     يستعيد الحساب (soft-delete → active) ويسجل دخول تلقائياً.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: email */
+                        email: string;
+                        code?: string;
+                        /** Format: password */
+                        newPassword: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description تم الاستعادة وإعادة تسجيل الدخول */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AuthResponse"] & {
+                            /** @example Account restored successfully */
+                            message?: string;
+                        };
+                    };
+                };
+                /** @description كود غير صحيح أو منتهي */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description الحساب غير موجود أو غير قابل للاستعادة */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+                /** @description انتهت فترة السماح */
+                410: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["GoneError"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** تجديد Access Token */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RefreshRequest"];
+                };
+            };
+            responses: {
+                /** @description Tokens refreshed */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            accessToken?: string;
+                            refreshToken?: string;
+                        };
+                    };
+                };
+                /** @description Invalid refresh token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** تسجيل خروج (إبطال الجلسة الحالية) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Logged out successfully */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
                 };
             };
         };
@@ -518,6 +766,29 @@ export interface components {
             error?: string;
             /** @example Invalid token */
             message?: string;
+        };
+        AuthResponse: {
+            /**
+             * @description JWT token صالح لـ 15 دقيقة
+             * @example eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+             */
+            accessToken?: string;
+            /**
+             * @description JWT token صالح لـ 7 أيام
+             * @example dGhpcyBpcyBhIHJlZnJlc2g...
+             */
+            refreshToken?: string;
+            user?: components["schemas"]["User"];
+        };
+        GoneError: {
+            /** @example Grace period expired */
+            error?: string;
+            /** @example ACCOUNT_PERMANENTLY_DELETED */
+            code?: string;
+        };
+        RefreshRequest: {
+            /** @description التوكن الطويل الأمد (Refresh Token) */
+            refreshToken: string;
         };
         User: {
             /** Format: uuid */

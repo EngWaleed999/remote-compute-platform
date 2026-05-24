@@ -1,5 +1,4 @@
 {
-  "extends": "@repo/shared-config/typescript/base",
   "compilerOptions": {
     "target": "ES2022",
     "module": "NodeNext",
@@ -10,12 +9,15 @@
     "rootDir": "./src",
     "strict": true,
     "sourceMap": true,
-    "baseUrl": ".",
     "composite": true,
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": ["./src/*"],
+      "@repo/shared-config/*": ["../shared-config/*"]
     }
   },
+  "references": [
+    { "path": "../shared-config" }
+  ],
   "include": ["src/**/*"],
   "exclude": ["dist", "node_modules"]
 }
