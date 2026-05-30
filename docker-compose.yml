@@ -2,9 +2,9 @@ version: '3.8'
 
 services:
   # خدمة قاعدة البيانات
-  postgres:
+  user_service:
     image: postgres:16-alpine
-    container_name: my_postgres_db
+    container_name: user_service_db
     restart: always
     environment:
       POSTGRES_USER: postgres
@@ -14,6 +14,19 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      
+  machine_service:
+    image: postgres:16-alpine
+    container_name: machine_service_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: walid-999
+      POSTGRES_DB: machine_service_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - machine_service_db:/var/lib/postgresql/data
       
   adminer:
     image: adminer
@@ -35,3 +48,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  machine_service_db:
