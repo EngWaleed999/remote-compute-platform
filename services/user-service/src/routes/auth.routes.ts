@@ -82,4 +82,11 @@ router.post(
   authController.confirmRestore.bind(authController)
 );
 
+// GET /auth/verify — internal (used by API Gateway to verify token validity)
+router.get(
+  '/verify',
+  authenticate,
+  authController.verify.bind(authController)
+);
+
 export { router as authRoutes };

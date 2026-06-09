@@ -7,11 +7,11 @@
  * - tokenVersion: atomic increment for instant token invalidation
  * - Restore code: hashed storage, expiry, single-use enforcement
  */
-import { Prisma, User } from '@prisma/client';
+import { Prisma, User } from '@prisma/client-user';
 import { prisma } from '../config/prisma.js';
 
 class UserRepository {
-  constructor(private db = prisma) {}
+  constructor(private db = prisma) { }
 
   // ═══════════════════════════════════════════════════
   // Core CRUD

@@ -1,0 +1,40 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# .dockerignore
+# ─────────────────────────────────────────────────────────────────────────────
+# When Docker builds an image, it sends the entire "context" directory to the
+# Docker daemon. This file tells Docker which files to SKIP, making builds
+# faster and images smaller.
+#
+# Think of it like .gitignore but for Docker.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Node modules — each container installs its own (different OS, different arch)
+**/node_modules
+
+# Build output — dev containers don't need compiled JS
+**/dist
+
+# Git history — not needed inside containers
+.git
+.gitignore
+
+# IDE and editor files
+.vscode
+.idea
+**/.DS_Store
+
+# Logs
+**/logs
+**/*.log
+
+# Environment files are loaded via env_file in docker-compose, not COPY
+# (But we do NOT ignore .env here because env_file references the path on host)
+
+# Documentation
+*.md
+docs/
+sprints/
+high_level_architecture_final/
+
+# Turborepo cache
+.turbo

@@ -203,6 +203,20 @@ class AuthControllerClass {
       next(error);
     }
   }
+  /**
+   * GET /auth/verify
+   * Lightweight endpoint for API Gateway to verify authentication tokens.
+   * Returns 200 if the token is valid, otherwise middleware handles 401.
+   */
+  async verify(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      // The `authenticate` middleware has already validated the token.
+      // We simply return 200 OK.
+      res.status(200).json({ valid: true, userId: req.user?.userId });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const authController = new AuthControllerClass();

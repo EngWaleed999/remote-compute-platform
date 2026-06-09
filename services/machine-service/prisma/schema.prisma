@@ -1,0 +1,237 @@
+generator client {
+  provider = "prisma-client-js"
+  engineType = "library"
+  binaryTarget = ["native"] 
+    output = "../node_modules/@prisma/client-machine"
+
+}
+generator zod {
+  provider = "prisma-zod-generator"
+  output = "../schemas"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+// pnpm prisma migrate dev --name init
+// pnpm prisma generate
+// pnpm prisma studio
+// pnpm prisma validate
+
+
+// ==================== MACHINE ====================
+model Machine {
+  id                   String              @id @default(uuid())
+  
+  // Identity
+  name                 String              @unique
+  hostname             String              @unique // Internal hostname
+  
+  // Owner
+  ownerId              String              // User Service
+  
+  // Specs
+  specs               MachineSpecs?        
+  capabilities         String[]            // ["gpu", "cuda", "tensorflow"]
+
+  machineTags         MachineTag[]
+
+ description          String?
+ imageUrl             String?
+ currency String @default("USD")
+  
+  // Pricing
+  hourlyRate           Decimal             @db.Decimal(10, 2)
+  minimumHours         Int                 @default(1)
+  
+  // Location
+  region               String              // "us-east-1", "eu-west-1"
+  datacenter           String?
+  
+  // Status
+  status               MachineStatus       @default(PENDING_SETUP)
+  healthStatus         HealthStatus        @default(UNKNOWN)
+  
+  // VNC/Remote
+  vncPort              Int                 @default(5900)
+  internalIp           String
+  
+  // Relations
+  healthLogs           HealthLog[]
+  snapshots            Snapshot[]
+  maintenanceWindows MaintenanceWindow[]
+  
+  // Metadata
+  lastSeenAt           DateTime?
+  totalBookings        Int                 @default(0)
+  totalRevenue         Decimal             @default(0) @db.Decimal(10, 2)
+  
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  
+  @@index([ownerId])
+  @@index([status])
+  @@index([healthStatus])
+  @@index([region])
+  @@index([capabilities])
+  @@index([hourlyRate])
+  @@map("machines")
+} 
+
+
+model MachineSpecs {
+  id          String   @id @default(uuid())
+ 
+  // Relation to Machine
+  machineId   String   @unique
+  machine     Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)
+ 
+  cpu         String   // "AMD EPYC 7742 64-Core"
+  cpuCores    Int
+  gpu         String?  // "NVIDIA RTX 4090"
+  gpuMemory   String?  // "24GB"
+  ram         String   // "128GB DDR4"
+  storage     String   // "2TB NVMe SSD"
+  network     String   // "10Gbps"
+  customSpecs Json?
+
+  @@map("machine_specs")
+}
+
+
+    // ==================== TAGS (For Dynamic Filtering) ====================                                                                                   
+    model Tag {                                                                                                                                                 
+      id        String       @id @default(uuid())                                                                                                               
+      name      String       @unique                // e.g., "GPU Type", "RAM Size", "OS"                                                                       
+      values    String[]                            // e.g., ["NVIDIA RTX 4090", "A100"]                                                                        
+      createdAt DateTime     @default(now())                                                                                                                    
+      updatedAt DateTime     @updatedAt                                                                                                                         
+                                                                                                                                                                
+      machineTags MachineTag[]                                                                                                                                  
+                                                                                                                                                                
+      @@map("tags")                                                                                                                                             
+    }                                                                                                                                                           
+                                                                                                                                                                
+    model MachineTag {                                                                                                                                          
+      id        String   @id @default(uuid())                                                                                                                   
+      machineId String                                                                                                                                          
+      tagId     String                                                                                                                                          
+      value     String                              // The specific value assigned to this machine                                                              
+                                                                                                                                                                
+      machine   Machine  @relation(fields: [machineId], references: [id], onDelete: Cascade)                                                                    
+      tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)                                                                        
+                                                                                                                                                                
+      @@unique([machineId, tagId])                                                                                                                              
+      @@map("machine_tags")                                                                                                                                     
+    }  
+
+
+enum MachineStatus {
+  PENDING_SETUP
+  AVAILABLE
+  BOOKED
+  MAINTENANCE
+  OFFLINE
+  RETIRED
+} 
+
+enum HealthStatus {
+  HEALTHY
+  WARNING
+  CRITICAL
+  UNKNOWN
+} 
+
+// ==================== HEALTH LOG ====================
+model HealthLog {
+  id              String       @id @default(uuid())
+  machineId       String
+  machine         Machine      @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  // Metrics
+  cpuUsage        Float?
+  memoryUsage     Float?
+  diskUsage       Float?
+  gpuUsage        Float?
+  gpuTemperature  Float?
+  networkLatency  Int?         // ms
+  
+  // Status
+  status          HealthStatus
+  message         String?
+  
+  // Active booking (if any)
+  activeBookingId String?
+  
+  checkedAt       DateTime     @default(now())
+  
+  @@index([machineId, checkedAt])
+  @@index([status])
+  @@index([checkedAt])
+  @@map("health_logs")
+} 
+
+// ==================== SNAPSHOT ====================
+model Snapshot {
+  id                String          @id @default(uuid())
+  
+  machineId         String
+  machine           Machine         @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  // Creator
+  createdByUserId   String
+  
+  // Details
+  name              String
+  description       String?
+  
+  // Storage
+  s3Bucket          String
+  s3Key             String
+  sizeGB            Int
+  checksum          String?
+  
+  // Status
+  status            SnapshotStatus  @default(CREATING)
+  progressPercent   Int             @default(0)
+  
+  // Usage
+  isPublic          Boolean         @default(false)
+  usageCount        Int             @default(0)
+  
+  createdAt         DateTime        @default(now())
+  completedAt       DateTime?
+  
+  @@index([machineId])
+  @@index([createdByUserId])
+  @@index([status])
+  @@map("snapshots")
+} 
+
+enum SnapshotStatus {
+  CREATING
+  UPLOADING
+  READY
+  RESTORING
+  DELETED
+  FAILED
+} 
+
+// ==================== MAINTENANCE WINDOW ====================
+model MaintenanceWindow {
+  id              String    @id @default(uuid())
+  machineId       String
+  machine         Machine   @relation(fields: [machineId], references: [id], onDelete: Cascade)
+  
+  startsAt        DateTime
+  endsAt          DateTime
+  reason          String?
+  
+  isRecurring     Boolean   @default(false)
+  recurrenceRule  String?   // iCal RRULE
+  
+  createdAt       DateTime  @default(now())
+  
+  @@index([machineId, startsAt])
+  @@map("maintenance_windows")
+}
