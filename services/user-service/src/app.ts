@@ -72,7 +72,7 @@ async function bootstrap() {
   // Connect to Redis (non-blocking — app works without it via DB fallback)
   await connectRedis();
 
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     logger.info(`🚀 User-service running on port ${PORT} [${env.NODE_ENV}]`);
     console.log(`🚀 User-service running on port ${PORT} [${env.NODE_ENV}]`);
   });

@@ -5,7 +5,7 @@ config();
 
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'production', 'test']),
-  PORT: z.string().default('3000'),
+  PORT: z.string().default('3001'),
   DATABASE_URL: z.string(),
   JWT_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),

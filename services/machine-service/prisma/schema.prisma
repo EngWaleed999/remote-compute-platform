@@ -2,6 +2,8 @@ generator client {
   provider = "prisma-client-js"
   engineType = "library"
   binaryTarget = ["native"] 
+    output = "../node_modules/@prisma/client-machine"
+
 }
 generator zod {
   provider = "prisma-zod-generator"

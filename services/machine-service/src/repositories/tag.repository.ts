@@ -1,4 +1,4 @@
-import { Prisma, Tag } from '@prisma/client';
+import { Prisma, Tag, Machine } from '@prisma/client-machine';
 import { prisma } from '../config/prisma.js';
 
 class TagRepository {
@@ -10,7 +10,7 @@ class TagRepository {
     // ═══════════════════════════════════════════════════
 
     async findAll() {
-        return this.db.tag.findMany()
+        return this.db.machine.findMany()
     }
 
     async create(data: Prisma.TagCreateInput): Promise<Tag> {

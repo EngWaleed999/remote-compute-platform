@@ -1,0 +1,182 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# docker-compose.dev.yml — Development Environment
+# ═══════════════════════════════════════════════════════════════════════════════
+#
+# Usage:
+#   docker compose -f docker-compose.dev.yml up --build
+#
+# This file is separate from docker-compose.yml (production) because the
+# configuration goals are completely different:
+#
+#   Production: small image, compiled JS, no source code, no dev tools
+#   Development: full source mounted, hot-reload, all dev tools available
+# ═══════════════════════════════════════════════════════════════════════════════
+
+services:
+  # ─────────────────────────────────────────────────────────────────────────
+  # PostgreSQL Database for user-service
+  # ─────────────────────────────────────────────────────────────────────────
+  user_service_db:
+    image: postgres:16-alpine
+    container_name: user_service_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: walid-999
+      POSTGRES_DB: user_service_db
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # PostgreSQL Database for machine-service
+  # ─────────────────────────────────────────────────────────────────────────
+  machine_service_db:
+    image: postgres:16-alpine
+    container_name: machine_service_db
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: walid-999
+      POSTGRES_DB: machine_service_db
+    ports:
+      - '5433:5432'
+    volumes:
+      - machine_service_db:/var/lib/postgresql/data
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Redis — Session & Token Cache
+  # ─────────────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:latest
+    container_name: my_redis_cache
+    restart: always
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # User Service — Node.js Application (DEVELOPMENT MODE)
+  #
+  # This is where the magic happens for hot-reload.
+  # Read the comments carefully to understand each line.
+  # ─────────────────────────────────────────────────────────────────────────
+  user-service:
+    build:
+      # ┌───────────────────────────────────────────────────────────────────┐
+      # │ context: .                                                        │
+      # │ The "build context" is the directory Docker sends to the daemon.  │
+      # │ We use the monorepo root (.) because our Dockerfile.dev needs to  │
+      # │ COPY files from packages/ and the root package.json.             │
+      # │                                                                   │
+      # │ If context was ./services/user-service, Docker could NOT access   │
+      # │ any files outside that folder (like packages/shared-utils).      │
+      # └───────────────────────────────────────────────────────────────────┘
+      context: .
+      dockerfile: services/user-service/Dockerfile.dev
+    container_name: user-service
+    restart: unless-stopped
+
+    # ┌─────────────────────────────────────────────────────────────────────┐
+    # │ env_file                                                            │
+    # │ Loads all variables from the .env file into the container.          │
+    # │ This provides: JWT_SECRET, JWT_REFRESH_SECRET, PORT, NODE_ENV, etc.│
+    # └─────────────────────────────────────────────────────────────────────┘
+    env_file:
+      - ./services/user-service/.env
+
+    # ┌─────────────────────────────────────────────────────────────────────┐
+    # │ environment (overrides)                                             │
+    # │                                                                     │
+    # │ Your .env file has DATABASE_URL pointing to "localhost:5432".       │
+    # │ But inside Docker, containers don't share localhost.                │
+    # │ Each container has its OWN localhost.                               │
+    # │                                                                     │
+    # │ To reach the Postgres container, we must use its SERVICE NAME      │
+    # │ from this compose file: "user_service_db"                          │
+    # │ Docker's internal DNS resolves this name to the container's IP.    │
+    # │                                                                     │
+    # │ Same for Redis: "localhost:6379" → "my_redis_cache:6379"           │
+    # │                                                                     │
+    # │ These `environment:` values OVERRIDE the same keys from env_file.  │
+    # └─────────────────────────────────────────────────────────────────────┘
+    environment:
+      DATABASE_URL: postgresql://postgres:walid-999@user_service_db:5432/user_service_db?schema=public
+      REDIS_URL: redis://my_redis_cache:6379
+
+    ports:
+      - '3001:3001'
+
+    # ┌─────────────────────────────────────────────────────────────────────┐
+    # │ volumes — THE KEY TO HOT RELOAD                                    │
+    # │                                                                     │
+    # │ Volume #1: Bind Mount (your code → container)                      │
+    # │   ./services/user-service/src:/app/services/user-service/src       │
+    # │                                                                     │
+    # │   This creates a LIVE LINK between your local src/ folder and the  │
+    # │   container's src/ folder. When you edit a file on your laptop,    │
+    # │   the container sees the change INSTANTLY (no rebuild needed).     │
+    # │   tsx watch detects the change and restarts the server.            │
+    # │                                                                     │
+    # │ Volume #2: Bind Mount (prisma schema)                              │
+    # │   Same concept — if you change your Prisma schema locally,        │
+    # │   the container sees it immediately.                               │
+    # │                                                                     │
+    # │ Volume #3: Anonymous Volume (node_modules protection)              │
+    # │   /app/services/user-service/node_modules                          │
+    # │                                                                     │
+    # │   WITHOUT this line, the bind mount would OVERWRITE the            │
+    # │   container's node_modules with your local node_modules.           │
+    # │   This causes problems because:                                    │
+    # │     - Your local modules are compiled for YOUR OS (Linux/Mac/Win)  │
+    # │     - The container runs Alpine Linux (different OS)               │
+    # │     - Native modules (like bcrypt, prisma) would CRASH             │
+    # │                                                                     │
+    # │   The anonymous volume tells Docker: "keep the node_modules that   │
+    # │   were installed INSIDE the container, don't overwrite them."      │
+    # └─────────────────────────────────────────────────────────────────────┘
+    volumes:
+      - ./services/user-service/src:/app/services/user-service/src
+      - ./services/user-service/prisma:/app/services/user-service/prisma
+      - /app/services/user-service/node_modules
+      - /app/node_modules
+
+    # ┌─────────────────────────────────────────────────────────────────────┐
+    # │ depends_on                                                          │
+    # │                                                                     │
+    # │ Tells Docker Compose to start these services BEFORE user-service.  │
+    # │ Note: this only waits for the container to START, not for the      │
+    # │ database to be READY. That's okay because our app has retry logic. │
+    # └─────────────────────────────────────────────────────────────────────┘
+    depends_on:
+      - user_service_db
+      - redis
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # NGINX API Gateway
+  # ─────────────────────────────────────────────────────────────────────────
+  api-gateway:
+    image: nginx:alpine
+    container_name: api-gateway
+    ports:
+      - 80:80
+    volumes:
+      - ./services/api-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - user-service
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Adminer — Database GUI (access at http://localhost:8080)
+  # ─────────────────────────────────────────────────────────────────────────
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - 8080:8080
+
+volumes:
+  postgres_data:
+  redis_data:
+  machine_service_db:

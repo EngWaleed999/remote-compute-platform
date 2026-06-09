@@ -6,7 +6,7 @@
  * All audit persistence is isolated here — the audit service
  * delegates to this repository for DB writes.
  */
-import { UserAuditLog, UserAction, Prisma } from '@prisma/client';
+import { UserAuditLog, UserAction, Prisma } from '@prisma/client-user';
 import { prisma } from '../config/prisma.js';
 
 /** Input shape for creating an audit log entry */

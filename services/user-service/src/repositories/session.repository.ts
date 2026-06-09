@@ -9,11 +9,11 @@
  * - Reuse detection: findRevokedByRefreshTokenHash() for stolen token detection
  * - Access tokens no longer stored in DB (stateless JWTs)
  */
-import { UserSession, LoginHistory, Prisma } from '@prisma/client';
+import { UserSession, LoginHistory, Prisma } from '@prisma/client-user';
 import { prisma } from '../config/prisma.js';
 
 class SessionRepository {
-  constructor(private db = prisma) {}
+  constructor(private db = prisma) { }
 
   // ═══════════════════════════════════════════════════
   // Session CRUD

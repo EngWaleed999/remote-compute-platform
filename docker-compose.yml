@@ -1,8 +1,9 @@
-version: '3.8'
-
 services:
-  # خدمة قاعدة البيانات
-  user_service:
+  # ─────────────────────────────────────────────────────────────────────────
+  # User Service Database (PostgreSQL)
+  # This is NOT the Node.js app — this is only the database for user-service.
+  # ─────────────────────────────────────────────────────────────────────────
+  user_service_db:
     image: postgres:16-alpine
     container_name: user_service_db
     restart: always
@@ -11,11 +12,34 @@ services:
       POSTGRES_PASSWORD: walid-999
       POSTGRES_DB: user_service_db
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      
-  machine_service:
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # User Service Node.js Application
+  # This is the actual Express app. It connects to user_service_db.
+  # NGINX will route requests to this container by its name: user-service
+  # ─────────────────────────────────────────────────────────────────────────
+  user-service:
+    build:
+      context: . # Build context is the monorepo root (needed to copy packages/)
+      dockerfile: services/user-service/Dockerfile
+    container_name: user-service
+    restart: always
+    env_file:
+      - ./services/user-service/.env # Loads PORT, DATABASE_URL, JWT_SECRET, etc.
+    environment:
+      # Override DATABASE_URL to point to the Docker container name instead of localhost
+      DATABASE_URL: postgresql://postgres:walid-999@user_service_db:5432/user_service_db?schema=public
+      REDIS_URL: redis://my_redis_cache:6379 # Override to use the Docker Redis container
+    ports:
+      - '3001:3001' # Expose for local debugging only (not required for NGINX communication)
+    depends_on:
+      - user_service_db # Wait for the database to be running first
+      - redis
+
+  machine_service_db:
     image: postgres:16-alpine
     container_name: machine_service_db
     restart: always
@@ -24,10 +48,21 @@ services:
       POSTGRES_PASSWORD: walid-999
       POSTGRES_DB: machine_service_db
     ports:
-      - "5433:5432"
+      - '5433:5432'
     volumes:
       - machine_service_db:/var/lib/postgresql/data
-      
+
+  api-gateway:
+    image: nginx:alpine
+    container_name: api-gateway
+    ports:
+      - 80:80
+    volumes:
+      - ./services/api-gateway/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - user-service # Depend on the Node.js app, not the DB
+      - machine_service_db
+
   adminer:
     image: adminer
     restart: always
@@ -40,7 +75,7 @@ services:
     container_name: my_redis_cache
     restart: always
     ports:
-      - "6379:6379"
+      - '6379:6379'
     volumes:
       - redis_data:/data
 

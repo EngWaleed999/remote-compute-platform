@@ -1,0 +1,130 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dockerfile.dev — Development-Only Image for user-service
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# WHY a separate Dockerfile.dev?
+# In production we use a multi-stage build that compiles TypeScript and strips
+# devDependencies. In development we want the exact opposite:
+#   • Keep devDependencies (tsx, typescript, prisma CLI)
+#   • Do NOT compile — run TypeScript directly with tsx
+#   • Enable hot-reload so every file save restarts the server instantly
+#
+# This image is meant to be used with docker-compose.dev.yml which
+# bind-mounts your source code into the container.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ Base Image                                                              │
+# │ node:20-alpine is a lightweight Linux image (~50MB) with Node.js 20.   │
+# │ "alpine" = Alpine Linux, the smallest practical Linux distro.          │
+# │ We use a SINGLE stage because we need everything at runtime for dev.   │
+# └─────────────────────────────────────────────────────────────────────────┘
+FROM node:20-alpine
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ Install pnpm                                                           │
+# │ This monorepo uses pnpm as its package manager. We install it globally │
+# │ so that all pnpm commands work inside the container.                   │
+# └─────────────────────────────────────────────────────────────────────────┘
+RUN npm install -g pnpm@10
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ Working Directory                                                       │
+# │ All commands below will run relative to /app.                          │
+# │ This also becomes the default directory when you `docker exec` in.     │
+# └─────────────────────────────────────────────────────────────────────────┘
+WORKDIR /app
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ Copy ONLY dependency-related files first                               │
+# │                                                                         │
+# │ Docker builds images in layers. Each instruction creates a layer.      │
+# │ If a layer hasn't changed, Docker reuses the cached version.           │
+# │                                                                         │
+# │ By copying package.json files BEFORE source code, we ensure that       │
+# │ `pnpm install` only re-runs when dependencies actually change.         │
+# │ Editing a .ts file will NOT trigger a slow reinstall.                  │
+# └─────────────────────────────────────────────────────────────────────────┘
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY tsconfig.json ./
+
+# Copy each package's package.json (pnpm needs these to resolve workspace:* links)
+COPY packages/shared-config/package.json ./packages/shared-config/
+COPY packages/shared-types/package.json ./packages/shared-types/
+COPY packages/shared-utils/package.json ./packages/shared-utils/
+
+# Copy the service's package.json
+COPY services/user-service/package.json ./services/user-service/
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ Install ALL dependencies (including devDependencies)                   │
+# │                                                                         │
+# │ --frozen-lockfile: Ensures the exact versions from pnpm-lock.yaml      │
+# │ are installed. If the lockfile is out of sync with package.json,       │
+# │ it will FAIL instead of silently updating. This prevents               │
+# │ "works on my machine" bugs.                                            │
+# │                                                                         │
+# │ Unlike production, we do NOT pass --prod here because we need:         │
+# │   • tsx (runs TypeScript directly without compiling)                   │
+# │   • typescript (for type checking)                                     │
+# │   • prisma CLI (for migrations)                                        │
+# │   • @types/* (for IDE support inside the container)                    │
+# └─────────────────────────────────────────────────────────────────────────┘
+RUN pnpm install --frozen-lockfile
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ Copy the FULL source code of shared packages                           │
+# │                                                                         │
+# │ The shared packages (shared-utils, shared-types, shared-config) are    │
+# │ imported by user-service via `workspace:*` links.                      │
+# │ Unlike the user-service source (which we bind-mount for hot-reload),   │
+# │ these packages are baked into the image because:                       │
+# │   1. They change infrequently                                          │
+# │   2. Bind-mounting the entire monorepo would be slow on macOS/Windows  │
+# │   3. pnpm's workspace symlinks need the actual files present           │
+# └─────────────────────────────────────────────────────────────────────────┘
+COPY packages/ ./packages/
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ Copy Prisma schema + migrations                                        │
+# │                                                                         │
+# │ Prisma needs the schema to generate its client.                        │
+# │ We copy these here so `prisma generate` works during the build.        │
+# │ At runtime, the bind-mount from docker-compose will overlay these      │
+# │ with your local versions anyway.                                       │
+# └─────────────────────────────────────────────────────────────────────────┘
+COPY services/user-service/prisma ./services/user-service/prisma
+COPY services/user-service/prisma.config.ts ./services/user-service/prisma.config.ts
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ Generate Prisma Client                                                  │
+# │                                                                         │
+# │ `prisma generate` reads your schema.prisma and creates a type-safe     │
+# │ database client (TypeScript types + query engine) inside node_modules. │
+# │ We do this at build time so the container starts instantly.            │
+# └─────────────────────────────────────────────────────────────────────────┘
+WORKDIR /app/services/user-service
+# RUN pnpm prisma generate
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ EXPOSE                                                                  │
+# │                                                                         │
+# │ This is DOCUMENTATION only. It tells other developers (and tools like  │
+# │ Docker Desktop) that this container expects traffic on port 3001.      │
+# │ It does NOT actually open the port — that's done by `ports:` in        │
+# │ docker-compose.                                                         │
+# └─────────────────────────────────────────────────────────────────────────┘
+EXPOSE 3001
+
+# ┌─────────────────────────────────────────────────────────────────────────┐
+# │ CMD — The command that runs when the container starts                  │
+# │                                                                         │
+# │ `pnpm dev` runs `tsx watch src/app.ts` (defined in package.json)       │
+# │                                                                         │
+# │ tsx = a tool that runs TypeScript files directly (no tsc compile step) │
+# │ watch = restarts the process whenever a .ts file changes               │
+# │                                                                         │
+# │ Combined with the bind-mount in docker-compose, this means:            │
+# │ You edit a file on your laptop → Docker sees the change → tsx restarts │
+# └─────────────────────────────────────────────────────────────────────────┘
+CMD ["pnpm", "dev"]

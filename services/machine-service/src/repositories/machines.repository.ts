@@ -1,4 +1,4 @@
-import { Prisma, Machine, MachineSpecs, } from '@prisma/client';
+import { Prisma,Machine } from '@prisma/client-machine';
 import { prisma } from '../config/prisma.js';
 
 

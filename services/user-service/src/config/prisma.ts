@@ -4,7 +4,7 @@
  * Handles graceful disconnect on process exit.
  * هذا الملف مسؤول عن تشغيل بريسما داخل التطبيق وقت التشغيل
  */
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '@prisma/client-user';
 import { env } from './env.js';
 import { PrismaPg } from '@prisma/adapter-pg';
 
