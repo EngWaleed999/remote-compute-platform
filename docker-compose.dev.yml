@@ -139,6 +139,7 @@ services:
     # └─────────────────────────────────────────────────────────────────────┘
     volumes:
       - ./services/user-service/src:/app/services/user-service/src
+      - ./services/user-service/src:/app/services/user-service/logs
       - ./services/user-service/prisma:/app/services/user-service/prisma
       - /app/services/user-service/node_modules
       - /app/node_modules

@@ -561,6 +561,9 @@ importers:
       jsonwebtoken:
         specifier: ^9.0.3
         version: 9.0.3
+      nodemailer:
+        specifier: ^8.0.4
+        version: 8.0.4
       pg:
         specifier: 8.18.0
         version: 8.18.0
@@ -589,6 +592,9 @@ importers:
       '@types/node':
         specifier: ^25.5.0
         version: 25.5.0
+      '@types/nodemailer':
+        specifier: ^7.0.11
+        version: 7.0.11
       prisma:
         specifier: ^7.5.0
         version: 7.5.0(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.7.3)

@@ -26,6 +26,7 @@
 ### The Problem Docker Solves
 
 Imagine you join a new company. The project needs:
+
 - Node.js 20 (not 18, not 22)
 - PostgreSQL 16
 - Redis
@@ -74,16 +75,16 @@ Docker containers share the host's Linux kernel, making them **10-100x lighter**
 
 ### Key Terminology
 
-| Term | What It Means | Real-World Analogy |
-|------|--------------|-------------------|
-| **Image** | A blueprint/recipe for creating a container | A class in OOP |
-| **Container** | A running instance of an image | An object (instance of a class) |
-| **Dockerfile** | Instructions to BUILD an image | The constructor of the class |
-| **Volume** | A way to share/persist data between host and container | A shared folder |
-| **Bind Mount** | A specific volume type: maps a host folder → container folder | A symlink between your laptop and the container |
-| **Layer** | Each instruction in a Dockerfile creates a cacheable layer | Like git commits — stackable and cacheable |
-| **Registry** | A storage service for Docker images (Docker Hub, GitHub Container Registry) | Like npm registry but for Docker images |
-| **Docker Compose** | A tool to define and run multi-container applications from a YAML file | An orchestra conductor — runs all your containers together |
+| Term               | What It Means                                                               | Real-World Analogy                                         |
+| ------------------ | --------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Image**          | A blueprint/recipe for creating a container                                 | A class in OOP                                             |
+| **Container**      | A running instance of an image                                              | An object (instance of a class)                            |
+| **Dockerfile**     | Instructions to BUILD an image                                              | The constructor of the class                               |
+| **Volume**         | A way to share/persist data between host and container                      | A shared folder                                            |
+| **Bind Mount**     | A specific volume type: maps a host folder → container folder               | A symlink between your laptop and the container            |
+| **Layer**          | Each instruction in a Dockerfile creates a cacheable layer                  | Like git commits — stackable and cacheable                 |
+| **Registry**       | A storage service for Docker images (Docker Hub, GitHub Container Registry) | Like npm registry but for Docker images                    |
+| **Docker Compose** | A tool to define and run multi-container applications from a YAML file      | An orchestra conductor — runs all your containers together |
 
 ---
 
@@ -100,11 +101,11 @@ remote-compute-platform/
         └── Dockerfile.dev          ← Development build (hot-reload, raw TypeScript)
 ```
 
-| File | Purpose | When Does It Run? | Who Reads It? |
-|------|---------|-------------------|---------------|
-| `Dockerfile.dev` | Defines **HOW** to build the user-service development image | Once (at `docker build` time) | Docker Engine |
-| `docker-compose.dev.yml` | Defines **WHAT** containers to run and **HOW** they connect | Every time you start the project | Docker Compose |
-| `.dockerignore` | Lists files Docker should **IGNORE** when sending context to daemon | During `docker build` | Docker Engine |
+| File                     | Purpose                                                             | When Does It Run?                | Who Reads It?  |
+| ------------------------ | ------------------------------------------------------------------- | -------------------------------- | -------------- |
+| `Dockerfile.dev`         | Defines **HOW** to build the user-service development image         | Once (at `docker build` time)    | Docker Engine  |
+| `docker-compose.dev.yml` | Defines **WHAT** containers to run and **HOW** they connect         | Every time you start the project | Docker Compose |
+| `.dockerignore`          | Lists files Docker should **IGNORE** when sending context to daemon | During `docker build`            | Docker Engine  |
 
 ### Why Two Dockerfiles?
 
@@ -134,6 +135,7 @@ FROM node:20-alpine
 **What it does:** Every Dockerfile MUST start with `FROM`. It picks a **base image** — a pre-built operating system with tools already installed.
 
 **Breaking it down:**
+
 - `node` = the official Node.js image from Docker Hub
 - `20` = Node.js version 20 (matches your project)
 - `alpine` = Alpine Linux variant (a minimal 5MB Linux distro)
@@ -160,6 +162,7 @@ RUN npm install -g pnpm@10
 **Why `@10`?** Your root `package.json` specifies `"packageManager": "pnpm@10.32.1"`. Pinning the major version ensures compatibility.
 
 **RUN vs CMD — The Most Confused Docker Concept:**
+
 ```
 RUN  → Executes during BUILD TIME (creating the image)
        Example: installing packages, creating directories
@@ -169,6 +172,7 @@ CMD  → Executes during RUN TIME (starting the container)
 ```
 
 Think of it this way:
+
 - `RUN` = instructions for building a house (pour concrete, install pipes)
 - `CMD` = what happens when someone moves in (turn on the lights)
 
@@ -185,12 +189,14 @@ WORKDIR /app
 Every `COPY`, `RUN`, and `CMD` after this runs from `/app`.
 
 **Without WORKDIR:**
+
 ```dockerfile
 RUN cd /app && npm install    # BAD: Each RUN starts from /
 RUN cd /app && npm run build  # You have to cd every time!
 ```
 
 **With WORKDIR:**
+
 ```dockerfile
 WORKDIR /app
 RUN npm install               # Automatically runs in /app
@@ -241,6 +247,7 @@ Scenario: You edited src/app.ts and rebuild
 ```
 
 **Visual:**
+
 ```
 ┌─────────────────────────────────────────────┐
 │ Layer 4: CMD ["pnpm", "dev"]                │  ← Always cached
@@ -253,10 +260,10 @@ Scenario: You edited src/app.ts and rebuild
 
 #### What is `--frozen-lockfile`?
 
-| Flag | Behavior |
-|------|----------|
-| (no flag) | If package.json and lockfile are out of sync, pnpm **updates** the lockfile silently |
-| `--frozen-lockfile` | If they're out of sync, pnpm **FAILS** with an error |
+| Flag                | Behavior                                                                             |
+| ------------------- | ------------------------------------------------------------------------------------ |
+| (no flag)           | If package.json and lockfile are out of sync, pnpm **updates** the lockfile silently |
+| `--frozen-lockfile` | If they're out of sync, pnpm **FAILS** with an error                                 |
 
 Why use it? In Docker, you want **reproducible builds**. If the lockfile says "express@5.2.1", you want exactly that — not a silent upgrade to 5.3.0 that might break things.
 
@@ -286,9 +293,10 @@ EXPOSE 3001
 `EXPOSE` tells humans and tools (like Docker Desktop): "This container expects traffic on port 3001."
 
 **The actual port opening happens in docker-compose:**
+
 ```yaml
 ports:
-  - '3001:3001'    # THIS is what actually opens the port
+  - '3001:3001' # THIS is what actually opens the port
 ```
 
 **Interview tip:** Many developers think `EXPOSE` opens ports. It doesn't. Always clarify this distinction.
@@ -304,6 +312,7 @@ CMD ["pnpm", "dev"]
 **What it does:** The command that runs when the container **starts**. `pnpm dev` executes `tsx watch src/app.ts` (from your package.json scripts).
 
 **Exec form vs Shell form:**
+
 ```dockerfile
 CMD ["pnpm", "dev"]        # Exec form (RECOMMENDED) — runs pnpm directly as PID 1
 CMD pnpm dev               # Shell form — runs /bin/sh -c "pnpm dev" (extra shell process)
@@ -331,7 +340,7 @@ build:
   dockerfile: services/user-service/Dockerfile.dev
 ```
 
-**`context: .`** — The build context is the **monorepo root**. When you run `docker build`, Docker takes this entire directory and sends it to the Docker daemon. 
+**`context: .`** — The build context is the **monorepo root**. When you run `docker build`, Docker takes this entire directory and sends it to the Docker daemon.
 
 Why the root and not `./services/user-service`? Because our Dockerfile needs to `COPY` files from `packages/` which lives at the monorepo root. Docker cannot access files **outside** the build context.
 
@@ -360,6 +369,7 @@ environment:
 **Why do we have BOTH?**
 
 `env_file` loads **ALL** variables from your `.env` file:
+
 ```
 JWT_SECRET="asle87ds87d5s76weffker64s87srfia"
 JWT_REFRESH_SECRET="ds854sd8f4rf84se56f4wr89489esiw58wq9da5r"
@@ -456,11 +466,13 @@ Tells Docker Compose: "Start PostgreSQL and Redis **before** user-service."
 **Important caveat:** `depends_on` only waits for the container to **start**, NOT for the database to be **ready** to accept connections. PostgreSQL might take 2-3 seconds to initialize after the container starts. That's why your app has retry logic in `connectRedis()` and Prisma handles connection retries automatically.
 
 For stricter ordering, you can use health checks:
+
 ```yaml
 depends_on:
   user_service_db:
     condition: service_healthy
 ```
+
 (This requires a `healthcheck:` block on the database service.)
 
 ---
@@ -471,12 +483,12 @@ depends_on:
 restart: unless-stopped
 ```
 
-| Policy | Behavior |
-|--------|----------|
-| `no` | Never restart (default) |
-| `always` | Always restart, even after `docker stop` + system reboot |
-| `unless-stopped` | Restart on crash, but NOT if you manually stopped it |
-| `on-failure` | Restart only if exit code ≠ 0 |
+| Policy           | Behavior                                                 |
+| ---------------- | -------------------------------------------------------- |
+| `no`             | Never restart (default)                                  |
+| `always`         | Always restart, even after `docker stop` + system reboot |
+| `unless-stopped` | Restart on crash, but NOT if you manually stopped it     |
+| `on-failure`     | Restart only if exit code ≠ 0                            |
 
 `unless-stopped` is ideal for development: if your app crashes due to a bug, Docker restarts it. But when you intentionally stop it with `docker compose down`, it stays stopped.
 
@@ -501,6 +513,7 @@ With .dockerignore:
 ```
 
 **Our `.dockerignore` excludes:**
+
 ```
 **/node_modules    → Container installs its own (different OS)
 **/dist            → Dev containers don't need compiled JS
@@ -551,11 +564,11 @@ Total time from save to new server ready: ~1-2 seconds
 
 **Why `tsx` instead of `tsc` + `node`?**
 
-| Approach | What Happens | Speed |
-|----------|-------------|-------|
-| `tsc && node dist/app.js` | Compiles ALL .ts files → writes .js to disk → runs | 3-10 seconds |
-| `tsx watch src/app.ts` | Compiles ONLY the needed files, in memory, on-the-fly | <1 second |
-| `ts-node src/app.ts` | Like tsx but slower (uses TypeScript's own compiler) | 2-5 seconds |
+| Approach                  | What Happens                                          | Speed        |
+| ------------------------- | ----------------------------------------------------- | ------------ |
+| `tsc && node dist/app.js` | Compiles ALL .ts files → writes .js to disk → runs    | 3-10 seconds |
+| `tsx watch src/app.ts`    | Compiles ONLY the needed files, in memory, on-the-fly | <1 second    |
+| `ts-node src/app.ts`      | Like tsx but slower (uses TypeScript's own compiler)  | 2-5 seconds  |
 
 `tsx` is the fastest option because it uses **esbuild** under the hood (written in Go, 10-100x faster than TypeScript's compiler).
 
@@ -566,6 +579,7 @@ Total time from save to new server ready: ~1-2 seconds
 ### The Problem: `localhost` Doesn't Work in Docker
 
 On your laptop, everything shares the same `localhost`:
+
 - PostgreSQL → `localhost:5432` ✅
 - Redis → `localhost:6379` ✅
 - Your app → `localhost:3001` ✅
@@ -625,6 +639,7 @@ docker-compose environment (for running INSIDE Docker):
 ```
 
 And in NGINX config:
+
 ```nginx
 proxy_pass http://user-service:3001/api/v1/auth/;
                   ^^^^^^^^^^^^
@@ -635,7 +650,7 @@ proxy_pass http://user-service:3001/api/v1/auth/;
 
 ```yaml
 ports:
-  - '3001:3001'    # host:container
+  - '3001:3001' # host:container
 ```
 
 This maps your laptop's port 3001 → the container's port 3001. It's what lets you access `http://localhost:3001` from your browser.
@@ -652,17 +667,17 @@ user-service → user_service_db:5432 → postgres container (internal, no ports
 
 ## 8. Dev vs Production — The Key Differences
 
-| Aspect | Dockerfile (Production) | Dockerfile.dev (Development) |
-|--------|------------------------|------------------------------|
-| **Stages** | 2 stages (builder + runner) | 1 stage (everything in one) |
-| **TypeScript** | Compiled to `.js` via `tsc` | Run directly via `tsx` |
-| **Dependencies** | Production only (`--prod`) | ALL deps (including devDependencies) |
-| **Source code** | Baked/copied into the image | Bind-mounted from your laptop |
-| **Hot reload** | ❌ No — requires full rebuild | ✅ Yes — `tsx watch` |
-| **Image size** | ~150MB (small, secure) | ~400MB (larger, has dev tools) |
-| **Start command** | `node dist/app.js` | `pnpm dev` (`tsx watch src/app.ts`) |
-| **File changes** | Requires full `docker build` + redeploy | Instant restart (~1 second) |
-| **Dev tools inside** | ❌ No tsc, no tsx, no prisma CLI | ✅ All available |
+| Aspect               | Dockerfile (Production)                 | Dockerfile.dev (Development)         |
+| -------------------- | --------------------------------------- | ------------------------------------ |
+| **Stages**           | 2 stages (builder + runner)             | 1 stage (everything in one)          |
+| **TypeScript**       | Compiled to `.js` via `tsc`             | Run directly via `tsx`               |
+| **Dependencies**     | Production only (`--prod`)              | ALL deps (including devDependencies) |
+| **Source code**      | Baked/copied into the image             | Bind-mounted from your laptop        |
+| **Hot reload**       | ❌ No — requires full rebuild           | ✅ Yes — `tsx watch`                 |
+| **Image size**       | ~150MB (small, secure)                  | ~400MB (larger, has dev tools)       |
+| **Start command**    | `node dist/app.js`                      | `pnpm dev` (`tsx watch src/app.ts`)  |
+| **File changes**     | Requires full `docker build` + redeploy | Instant restart (~1 second)          |
+| **Dev tools inside** | ❌ No tsc, no tsx, no prisma CLI        | ✅ All available                     |
 
 ### Why 2 Stages in Production?
 
@@ -708,50 +723,66 @@ Development:
 ## 9. Common Interview Questions
 
 ### Q1: "What is Docker?"
+
 **A:** Docker is a platform that packages applications and their dependencies into lightweight, portable containers. Each container runs in isolation, ensuring the app works identically across development, testing, and production environments.
 
 ### Q2: "What is the difference between an image and a container?"
+
 **A:** An image is a read-only template (like a class). A container is a running instance of an image (like an object). You can create many containers from the same image.
 
 ### Q3: "What is the difference between CMD and ENTRYPOINT?"
+
 **A:** Both define what runs when a container starts.
+
 - `CMD` can be **overridden** at runtime: `docker run myimage /bin/sh` replaces CMD.
 - `ENTRYPOINT` is **fixed** — CMD becomes arguments to it.
 - Use `CMD` for the default command. Use `ENTRYPOINT` when the container should always run the same executable.
 
 ### Q4: "What is the difference between COPY and ADD?"
+
 **A:** Both copy files into the image.
+
 - `COPY` copies files from the build context.
 - `ADD` also supports URLs and auto-extracts `.tar` archives.
 - **Best practice:** Always use `COPY` unless you specifically need tar extraction.
 
 ### Q5: "Why multi-stage builds?"
+
 **A:** To keep the final image small and secure. The builder stage has compilers and dev tools (~400MB). The runner stage only has the compiled output and runtime dependencies (~150MB). Smaller images = faster deployments + fewer CVEs.
 
 ### Q6: "What happens if you don't use an anonymous volume for node_modules in dev?"
+
 **A:** The bind mount overwrites the container's `node_modules` (compiled for Alpine Linux) with your local `node_modules` (compiled for macOS/Windows). Native modules like `bcrypt` or Prisma's query engine would crash with architecture mismatch errors.
 
 ### Q7: "How do containers communicate with each other?"
+
 **A:** Docker Compose creates a bridge network and gives each service a DNS name matching its service name in the YAML file. Containers use these DNS names (like `user_service_db`) instead of IP addresses or `localhost`.
 
 ### Q8: "What is the difference between `ports` and `EXPOSE`?"
+
 **A:** `EXPOSE` is documentation — it doesn't open any ports. `ports: '3001:3001'` in docker-compose maps host:container ports, making it accessible from the browser. Containers on the same network can talk to each other WITHOUT ports mapping.
 
 ### Q9: "What is Docker layer caching?"
+
 **A:** Each Dockerfile instruction creates a layer. Docker caches layers. If a layer hasn't changed, Docker reuses the cache. That's why we copy `package.json` before source code — so `pnpm install` is cached unless dependencies change.
 
 ### Q10: "What is `docker compose down -v`?"
+
 **A:** `down` stops and removes containers + networks. `-v` also removes **volumes** (which contain database data). Without `-v`, your PostgreSQL data survives restarts.
 
 ### Q11: "How would you debug a container that won't start?"
+
 **A:**
+
 1. `docker logs <container-name>` — check the app's console output
 2. `docker exec -it <container-name> sh` — get a shell inside (if the container is running)
 3. `docker run -it <image-name> sh` — start a fresh container with a shell (if it's crashing on startup)
 4. `docker inspect <container-name>` — check networking, volumes, environment
 
 ### Q12: "What is the difference between bind mount and named volume?"
+
 **A:**
+
 - **Bind mount** (`./src:/app/src`): Maps a specific host folder → container folder. You control the data.
 - **Named volume** (`postgres_data:/var/lib/postgresql/data`): Docker manages the storage location. Ideal for database data where you don't need direct file access.
 
@@ -847,6 +878,7 @@ docker system prune -a --volumes
 ### Prerequisites
 
 Make sure you have installed:
+
 - **Docker Desktop** (or Docker Engine + Docker Compose on Linux)
 - **Git** (to clone the repository)
 
@@ -886,6 +918,7 @@ docker compose -f docker-compose.dev.yml up --build
 ```
 
 **What happens:**
+
 1. Docker builds the `user-service` image from `Dockerfile.dev`
 2. Docker pulls `postgres:16-alpine`, `redis:latest`, `nginx:alpine`, `adminer` from Docker Hub (first time only)
 3. All containers start in the correct order (DB → Redis → user-service → NGINX)
@@ -903,14 +936,15 @@ This creates the database tables based on your Prisma schema.
 
 #### 5. Verify Everything is Working
 
-| Service | URL | What You Should See |
-|---------|-----|-------------------|
-| API Gateway (NGINX) | http://localhost | NGINX is running |
-| Auth endpoint | http://localhost/api/v1/auth/login | JSON response (even if error, means it's connected) |
-| Health check | http://localhost:3001/health | `{"status":"ok","service":"user-service"}` |
-| Adminer (DB GUI) | http://localhost:8080 | Login form for database |
+| Service             | URL                                | What You Should See                                 |
+| ------------------- | ---------------------------------- | --------------------------------------------------- |
+| API Gateway (NGINX) | http://localhost                   | NGINX is running                                    |
+| Auth endpoint       | http://localhost/api/v1/auth/login | JSON response (even if error, means it's connected) |
+| Health check        | http://localhost:3001/health       | `{"status":"ok","service":"user-service"}`          |
+| Adminer (DB GUI)    | http://localhost:8080              | Login form for database                             |
 
 **Adminer login credentials:**
+
 - System: PostgreSQL
 - Server: `user_service_db`
 - Username: `postgres`
@@ -931,14 +965,14 @@ docker compose -f docker-compose.dev.yml down
 
 ### Troubleshooting
 
-| Problem | Solution |
-|---------|----------|
-| `port is already in use` | Another process is using the port. Run `lsof -i :3001` to find it, then kill it |
-| `502 Bad Gateway` from NGINX | user-service isn't running. Check `docker logs user-service` |
-| `Connection refused` to database | Database isn't ready yet. Wait a few seconds or run `docker compose restart user-service` |
-| `pnpm install` fails in build | Your `pnpm-lock.yaml` might be out of sync. Run `pnpm install` locally first to update the lockfile |
-| Changes not reflecting | Make sure you're editing files inside `services/user-service/src/` (the bind-mounted directory) |
-| `ENOSPC: System limit for number of file watchers reached` | Run: `echo fs.inotify.max_user_watches=524288 \| sudo tee -a /etc/sysctl.conf && sudo sysctl -p` |
+| Problem                                                    | Solution                                                                                            |
+| ---------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `port is already in use`                                   | Another process is using the port. Run `lsof -i :3001` to find it, then kill it                     |
+| `502 Bad Gateway` from NGINX                               | user-service isn't running. Check `docker logs user-service`                                        |
+| `Connection refused` to database                           | Database isn't ready yet. Wait a few seconds or run `docker compose restart user-service`           |
+| `pnpm install` fails in build                              | Your `pnpm-lock.yaml` might be out of sync. Run `pnpm install` locally first to update the lockfile |
+| Changes not reflecting                                     | Make sure you're editing files inside `services/user-service/src/` (the bind-mounted directory)     |
+| `ENOSPC: System limit for number of file watchers reached` | Run: `echo fs.inotify.max_user_watches=524288 \| sudo tee -a /etc/sysctl.conf && sudo sysctl -p`    |
 
 ---
 
@@ -947,15 +981,19 @@ docker compose -f docker-compose.dev.yml down
 ### 🏗️ Docker Best Practices
 
 #### 1. Always Use `.dockerignore`
+
 Without it, Docker sends `node_modules` (500MB+) to the build daemon every time. With it, builds are 10-100x faster.
 
 #### 2. One Process Per Container
+
 Don't run PostgreSQL + Node.js + Redis in the same container. Each container should do **one thing**. This is the "microservices mindset":
+
 - Easier to scale (need more Node.js? Add more containers, keep 1 database)
 - Easier to debug (logs are separated by service)
 - Easier to update (update Redis without touching your app)
 
 #### 3. Use Specific Image Tags
+
 ```dockerfile
 # ❌ BAD: "latest" can change any day and break your build
 FROM node:latest
@@ -965,29 +1003,37 @@ FROM node:20-alpine
 ```
 
 #### 4. Don't Run as Root
+
 Production Dockerfiles should include:
+
 ```dockerfile
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 USER appuser
 ```
+
 This prevents a compromised container from having root access to the host.
 
 #### 5. Use Health Checks
+
 ```dockerfile
 HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
   CMD wget -qO- http://localhost:3001/health || exit 1
 ```
+
 This lets Docker (and orchestrators like Kubernetes) know if your app is actually healthy, not just running.
 
 #### 6. Keep Images Small
+
 ```
 node:20        → 900MB  ❌
 node:20-slim   → 200MB  ⚠️
 node:20-alpine → 50MB   ✅
 ```
+
 Smaller images = faster CI/CD, faster deployments, smaller attack surface.
 
 #### 7. Never Store Secrets in Dockerfiles
+
 ```dockerfile
 # ❌ NEVER do this — secrets end up in image layers (visible to anyone)
 ENV JWT_SECRET="my-secret-key"
@@ -1004,6 +1050,7 @@ RUN echo "password123" > /app/.env
 #### What Companies Expect You to Know About Docker
 
 **Junior/Mid Level:**
+
 - What is Docker and why it's used
 - How to write a basic Dockerfile
 - How to use docker-compose
@@ -1011,6 +1058,7 @@ RUN echo "password123" > /app/.env
 - The `localhost` problem in Docker networking
 
 **Senior Level:**
+
 - Multi-stage builds and why they matter
 - Layer caching optimization
 - Security best practices (non-root user, minimal images)
@@ -1028,16 +1076,17 @@ RUN echo "password123" > /app/.env
 
 Interviewers want to hear **WHY**, not just **WHAT**:
 
-| Just Usage (Weak) | Understanding (Strong) |
-|-------------------|----------------------|
-| "I use Alpine" | "I use Alpine to minimize image size and attack surface" |
-| "I copy package.json first" | "I copy dependency files before source code to leverage Docker's layer caching, so pnpm install is cached on code-only changes" |
-| "I use volumes" | "I use bind mounts for source code hot-reload and anonymous volumes to protect container-specific node_modules from host OS architecture conflicts" |
-| "I put stuff in docker-compose" | "I use Docker Compose to declaratively define my service topology, including networking, volume mounts, and startup ordering" |
+| Just Usage (Weak)               | Understanding (Strong)                                                                                                                              |
+| ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "I use Alpine"                  | "I use Alpine to minimize image size and attack surface"                                                                                            |
+| "I copy package.json first"     | "I copy dependency files before source code to leverage Docker's layer caching, so pnpm install is cached on code-only changes"                     |
+| "I use volumes"                 | "I use bind mounts for source code hot-reload and anonymous volumes to protect container-specific node_modules from host OS architecture conflicts" |
+| "I put stuff in docker-compose" | "I use Docker Compose to declaratively define my service topology, including networking, volume mounts, and startup ordering"                       |
 
 #### Keywords That Impress Interviewers
 
 Use these terms naturally in your answers:
+
 - **Layer caching** — Docker's build optimization
 - **Multi-stage build** — Separation of build and runtime environments
 - **Bind mount vs named volume** — Different persistence strategies
@@ -1051,9 +1100,11 @@ Use these terms naturally in your answers:
 ### 🧠 Things Most People Don't Know (Bonus Interview Points)
 
 #### 1. Docker doesn't actually run containers
+
 Docker uses **containerd** and **runc** under the hood. Docker itself is just the CLI and API layer. Kubernetes bypassed Docker entirely and talks to containerd directly (this is why "Docker was deprecated in Kubernetes" made headlines — but containers still work fine).
 
 #### 2. Every `RUN` instruction creates a layer
+
 ```dockerfile
 # ❌ BAD: 3 layers, each cached separately
 RUN apt-get update
@@ -1063,22 +1114,26 @@ RUN apt-get clean
 # ✅ GOOD: 1 layer, everything together
 RUN apt-get update && apt-get install -y curl && apt-get clean
 ```
+
 Fewer layers = smaller image size, and cleanup in the same layer actually reduces size (cleaning up in a later `RUN` doesn't remove data from the previous layer).
 
 #### 3. `docker compose` vs `docker-compose`
+
 ```bash
 docker-compose    # Old standalone tool (Python-based, deprecated)
 docker compose    # New plugin (Go-based, built into Docker CLI, use this one)
 ```
 
 #### 4. The DNS trick with container names
+
 The service name in docker-compose becomes the DNS hostname. But the `container_name` does NOT become the DNS name. The **service key** in the YAML is what matters:
 
 ```yaml
 services:
-  my-app:                    # ← THIS is the DNS name (my-app)
-    container_name: waleed   # ← This is NOT used for DNS
+  my-app: # ← THIS is the DNS name (my-app)
+    container_name: waleed # ← This is NOT used for DNS
 ```
+
 Other containers reach it via `http://my-app:3001`, NOT `http://waleed:3001`.
 
 ---

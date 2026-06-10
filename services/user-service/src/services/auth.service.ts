@@ -48,6 +48,7 @@ import {
   invalidateCachedTokenVersion,
 } from '../config/redis.js';
 import crypto from 'crypto';
+import { emailService } from './email.service.js';
 
 /** Grace period for restore verification code (minutes) */
 
@@ -114,6 +115,9 @@ class AuthServiceClass {
       passwordHash,
       name: dto.name,
     });
+
+    const otp = '123456'
+    await emailService.sendEmailVerifiy(dto.email, otp)
 
     // 4. Generate JWT tokens with tokenVersion
     const payload: JwtPayload = {
@@ -449,7 +453,7 @@ class AuthServiceClass {
       const restoredUser = await userRepository.restoreAccount(user.id, passwordHash);
       updatedUserId = restoredUser.id;
     } else {
-      await userRepository.update(user.id, { 
+      await userRepository.update(user.id, {
         passwordHash,
         restoreCodeHash: null,
         restoreCodeExpiresAt: null,
