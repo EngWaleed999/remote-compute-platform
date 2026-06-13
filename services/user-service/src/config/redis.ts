@@ -52,9 +52,13 @@ export async function getCachedTokenVersion(
   try {
     const value = await redis.get(`${TOKEN_VERSION_PREFIX}${userId}`);
     return value !== null ? parseInt(value, 10) : null;
-  } catch {
+  } catch (err) {
     // Redis failure should never block auth — fallback to DB
-    return null;
+    logger.warn({
+      message: 'Redis GET failed — falling back to DB',
+      userId,
+      error: (err as Error).message,
+    }); return null;
   }
 }
 
@@ -73,8 +77,12 @@ export async function setCachedTokenVersion(
       'EX',
       TOKEN_VERSION_TTL
     );
-  } catch {
-    // Non-critical — next request will cache-miss and read from DB
+  } catch (err) {
+    logger.warn({
+      message: 'Redis SET failed — cache not populated',
+      userId,
+      error: (err as Error).message,
+    });
   }
 }
 
@@ -87,8 +95,12 @@ export async function invalidateCachedTokenVersion(
 ): Promise<void> {
   try {
     await redis.del(`${TOKEN_VERSION_PREFIX}${userId}`);
-  } catch {
-    // Non-critical — worst case the old version is served for up to TTL
+  } catch (err) {
+    logger.error({
+      message: 'CRITICAL: Redis DEL failed — stale token may remain cached',
+      userId,
+      error: (err as Error).message,
+    });
   }
 }
 

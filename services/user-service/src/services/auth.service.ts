@@ -351,7 +351,7 @@ class AuthServiceClass {
     // 1. Find account by email (active OR deleted)
     const user = await userRepository.findByEmail(dto.email);
     if (!user) {
-      throw new AppError('If this email is registered, you will receive a verification code.', {
+      throw new AppError('We send verification code to your email , pleas check your inbox', {
         statusCode: 200,
         code: 'RESET_CODE_SENT',
       });
