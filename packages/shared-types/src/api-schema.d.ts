@@ -59,6 +59,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/verify-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** التحقق من البريد الإلكتروني باستخدام رمز OTP */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        userId: string;
+                        /** @example 123456 */
+                        enteredOtp: string;
+                    };
+                };
+            };
+            responses: {
+                /** @description Email verified successfully */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            /** @example Email verified successfully */
+                            message?: string;
+                        };
+                    };
+                };
+                /** @description Invalid or expired OTP */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Error"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -610,7 +667,18 @@ export interface paths {
         /** قائمة الأجهزة المتاحة للعامة */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    page?: number;
+                    limit?: number;
+                    /** @description البحث بالاسم أو الوصف */
+                    search?: string;
+                    /** @description حالة الجهاز */
+                    status?: string;
+                    /** @description الترتيب (price_asc, price_desc, name_asc, newest) */
+                    sort?: string;
+                    /** @description فلترة Tags بصيغة tagId1:value1,tagId2:value2 */
+                    tags?: string;
+                };
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -697,6 +765,87 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/machines/{id}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** فحص التوفر لفترة زمنية */
+        get: {
+            parameters: {
+                query: {
+                    startTime: string;
+                    endTime: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Availability check result */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            available?: boolean;
+                            conflictingBookings?: Record<string, never>[];
+                            nextAvailableSlot?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** قائمة كل الفلاتر (Tags) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description List of all tags for filtering */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tag"][];
+                    };
                 };
             };
         };
@@ -817,9 +966,25 @@ export interface components {
             /** Format: uuid */
             id?: string;
             name?: string;
+            description?: string;
             /** @enum {string} */
-            status?: "available" | "in_use" | "maintenance" | "offline";
+            status?: "PENDING_SETUP" | "AVAILABLE" | "BOOKED" | "MAINTENANCE" | "OFFLINE" | "RETIRED";
+            hourlyRate?: number;
+            /** @default USD */
+            currency: string;
+            imageUrl?: string;
             specs?: Record<string, never>;
+            tags?: {
+                id?: string;
+                name?: string;
+                value?: string;
+            }[];
+        };
+        Tag: {
+            /** Format: uuid */
+            id?: string;
+            name?: string;
+            values?: string[];
         };
     };
     responses: never;

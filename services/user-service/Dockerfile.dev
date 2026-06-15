@@ -72,6 +72,8 @@ COPY services/user-service/package.json ./services/user-service/
 # └─────────────────────────────────────────────────────────────────────────┘
 RUN pnpm install --frozen-lockfile
 
+
+
 # ┌─────────────────────────────────────────────────────────────────────────┐
 # │ Copy the FULL source code of shared packages                           │
 # │                                                                         │
@@ -104,8 +106,7 @@ COPY services/user-service/prisma.config.ts ./services/user-service/prisma.confi
 # │ We do this at build time so the container starts instantly.            │
 # └─────────────────────────────────────────────────────────────────────────┘
 WORKDIR /app/services/user-service
-# RUN pnpm prisma generate
-
+RUN DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy" pnpm prisma generate
 # ┌─────────────────────────────────────────────────────────────────────────┐
 # │ EXPOSE                                                                  │
 # │                                                                         │

@@ -18,7 +18,7 @@ import type {
   UpdateProfileRequestDto,
 } from '../dto/user.dto.js';
 import { logger } from '../config/logger.js';
-import { invalidateCachedTokenVersion } from '../config/redis.js';
+import { invalidateCachedTokenVersion } from '../cache/strategies/token-version.cache.js';
 
 class UserServiceClass {
   /**
@@ -105,8 +105,8 @@ class UserServiceClass {
     await userRepository.softDelete(userId, gracePeriodEnd);
 
     // Bump tokenVersion → immediately invalidates all access tokens
-    await userRepository.bumpTokenVersion(userId);
-    await invalidateCachedTokenVersion(userId);
+    const bumpedUser = await userRepository.bumpTokenVersion(userId);
+    await invalidateCachedTokenVersion(userId, bumpedUser.tokenVersion);
 
     // Revoke all sessions — user is logged out everywhere
     await sessionRepository.revokeAllUserSessions(userId, 'ACCOUNT_DELETED');

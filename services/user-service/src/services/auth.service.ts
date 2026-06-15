@@ -41,13 +41,16 @@ import type {
   ConfirmRequestDto,
   ConfirmResponseDto,
   RequestMeta,
+  VerifyEmailRequestDto,
 } from '../dto/auth.dto.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '@repo/shared-utils';
 import {
   invalidateCachedTokenVersion,
-} from '../config/redis.js';
+} from '../cache/strategies/token-version.cache.js';
 import crypto from 'crypto';
+import { emailService } from './email.service.js';
+import { otpService } from './otp.service.js';
 
 /** Grace period for restore verification code (minutes) */
 
@@ -115,6 +118,10 @@ class AuthServiceClass {
       name: dto.name,
     });
 
+    const otp = otpService.generateOTP();
+    const storeOtp = await otpService.storeOTP(user.id, otp);
+    await emailService.sendEmailVerifiy(dto.email, otp)
+
     // 4. Generate JWT tokens with tokenVersion
     const payload: JwtPayload = {
       userId: user.id,
@@ -170,6 +177,41 @@ class AuthServiceClass {
       refreshToken,
       csrfToken,
     };
+  }
+
+  /**
+   * Verify Email using OTP
+   * User submits the OTP received via email to confirm their account.
+   */
+  async verifyEmail(dto: VerifyEmailRequestDto, meta: RequestMeta): Promise<{ message: string }> {
+    // 1. Validate OTP
+    const isValid = await otpService.verifiyOTP(dto.userId, dto.enteredOtp);
+    if (!isValid) {
+      throw new AppError('Invalid or expired OTP code', {
+        statusCode: 400,
+        code: 'INVALID_OTP',
+      });
+    }
+
+    // 2. Mark user email as verified
+    await userRepository.update(dto.userId, { emailVerified: true });
+
+    // 3. Audit log
+    auditService.log({
+      userId: dto.userId,
+      action: 'EMAIL_VERIFIED',
+      description: 'User successfully verified their email address',
+      ipAddress: meta.ipAddress,
+      userAgent: meta.userAgent,
+      
+    });
+
+    logger.info({
+      message: 'User email verified',
+      userId: dto.userId,
+    });
+
+    return { message: 'Email verified successfully' };
   }
 
   /**
@@ -347,7 +389,7 @@ class AuthServiceClass {
     // 1. Find account by email (active OR deleted)
     const user = await userRepository.findByEmail(dto.email);
     if (!user) {
-      throw new AppError('If this email is registered, you will receive a verification code.', {
+      throw new AppError('We send verification code to your email , pleas check your inbox', {
         statusCode: 200,
         code: 'RESET_CODE_SENT',
       });
@@ -449,7 +491,7 @@ class AuthServiceClass {
       const restoredUser = await userRepository.restoreAccount(user.id, passwordHash);
       updatedUserId = restoredUser.id;
     } else {
-      await userRepository.update(user.id, { 
+      await userRepository.update(user.id, {
         passwordHash,
         restoreCodeHash: null,
         restoreCodeExpiresAt: null,
@@ -459,7 +501,7 @@ class AuthServiceClass {
 
     // 6. Bump tokenVersion → invalidates ALL old access tokens
     const updatedUser = await userRepository.bumpTokenVersion(updatedUserId);
-    await invalidateCachedTokenVersion(updatedUserId);
+    await invalidateCachedTokenVersion(updatedUserId, updatedUser.tokenVersion);
 
     // 7. Revoke all old sessions
     await sessionRepository.revokeAllUserSessions(
@@ -563,8 +605,8 @@ class AuthServiceClass {
           'REFRESH_TOKEN_REUSE_DETECTED'
         );
         // Bump token version to invalidate all existing access tokens
-        await userRepository.bumpTokenVersion(revokedSession.userId);
-        await invalidateCachedTokenVersion(revokedSession.userId);
+        const bumpedUser = await userRepository.bumpTokenVersion(revokedSession.userId);
+        await invalidateCachedTokenVersion(revokedSession.userId, bumpedUser.tokenVersion);
 
         // Audit: HIGH SEVERITY event
         auditService.log({

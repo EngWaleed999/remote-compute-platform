@@ -16,13 +16,13 @@
  * - ACCOUNT_DELETED
  * - ALL_SESSIONS_REVOKED / TOKEN_VERSION_BUMPED
  */
-import { UserAction } from '@prisma/client';
+import { UserAction } from '@prisma/client-user';
 import {
   auditRepository,
   type CreateAuditLogInput,
 } from '../repositories/audit.repository.js';
 import { logger } from '../config/logger.js';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client-user';
 
 /** Simplified input for the audit service (metadata is optional JSON) */
 export interface AuditEvent {

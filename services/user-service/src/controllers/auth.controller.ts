@@ -23,6 +23,7 @@ import type {
   RestoreRequestDto,
   ConfirmRequestDto,
   RequestMeta,
+  VerifyEmailRequestDto,
 } from '../dto/auth.dto.js';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookie.util.js';
 import { AppError } from '@repo/shared-utils';
@@ -63,6 +64,26 @@ class AuthControllerClass {
       );
 
       res.status(201).json(result.body);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /auth/verify-email
+   * Verifies the user's email using the OTP they received.
+   */
+  async verifyEmail(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const dto = req.body as VerifyEmailRequestDto;
+      const meta = extractMeta(req);
+      const result = await authService.verifyEmail(dto, meta);
+
+      res.status(200).json(result);
     } catch (error) {
       next(error);
     }

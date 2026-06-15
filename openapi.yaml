@@ -184,6 +184,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /auth/verify-email:
+    post:
+      summary: التحقق من البريد الإلكتروني باستخدام رمز OTP
+      tags:
+        - Authentication
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId, enteredOtp]
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                enteredOtp:
+                  type: string
+                  example: '123456'
+      responses:
+        '200':
+          description: Email verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'Email verified successfully'
+        '400':
+          description: Invalid or expired OTP
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /auth/login:
     post:
       summary: تسجيل دخول

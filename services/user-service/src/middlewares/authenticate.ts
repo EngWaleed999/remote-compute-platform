@@ -19,7 +19,7 @@ import { userRepository } from '../repositories/user.repository.js';
 import {
   getCachedTokenVersion,
   setCachedTokenVersion,
-} from '../config/redis.js';
+} from '../cache/strategies/token-version.cache.js';
 
 /**
  * Middleware that enforces authentication on protected routes.

@@ -39,6 +39,7 @@ app.use(
 app.use(express.json({ limit: '10kb' })); // Limit body size for security
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser()); // Required for HttpOnly cookie-based auth
+app.set('trust proxy', 1); // Trust first proxy (if behind a load balancer) // If behind a proxy (e.g., in production), trust X-Forwarded-* headers for correct client IP and secure cookies handling
 
 // ═══════════════════════════════════════════════════
 // 3️⃣ Rate Limiting (global fallback)
