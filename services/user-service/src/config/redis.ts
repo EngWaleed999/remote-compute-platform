@@ -1,16 +1,19 @@
 /**
  * Redis Client Singleton
+ * ──────────────────────
  * Uses ioredis for connection pooling, automatic reconnection, and pipelining.
  *
- * Strategy: Cache-Aside (Lazy Loading)
- * - On read: check Redis first → if miss → query DB → write to Redis
- * - On write: update DB first → invalidate Redis key
+ * SINGLE RESPONSIBILITY: This file manages the Redis CONNECTION only.
+ * It does NOT contain any domain-specific cache logic.
  *
- * Used for:
- * - tokenVersion caching (avoids 1 DB query per authenticated request)
- * - CSRF token storage (optional, future)
+ * Domain-specific caching is handled by strategy files:
+ *   - cache/strategies/token-version.cache.ts  (tokenVersion)
+ *   - cache/strategies/otp.cache.ts            (future)
  *
- * Key naming convention: `user-service:<domain>:<id>`
+ * All strategies use the generic CacheService (cache/cache.service.ts),
+ * which imports the `redis` client exported from this file.
+ *
+ * Key naming convention: `<service>:<domain>:<id>`
  * Example: `user-service:token-version:abc-123`
  */
 import IORedis from 'ioredis';
@@ -33,76 +36,6 @@ redis.on('connect', () => {
 redis.on('error', (err: Error) => {
   logger.error({ message: 'Redis connection error', error: err.message });
 });
-
-// ═══════════════════════════════════════════════════
-// Token Version Cache
-// ═══════════════════════════════════════════════════
-
-const TOKEN_VERSION_PREFIX = 'user-service:token-version:';
-/** TTL for cached tokenVersion (5 minutes) */
-const TOKEN_VERSION_TTL = 300;
-
-/**
- * Get the cached tokenVersion for a user.
- * Returns null on cache miss — caller should fall back to DB.
- */
-export async function getCachedTokenVersion(
-  userId: string
-): Promise<number | null> {
-  try {
-    const value = await redis.get(`${TOKEN_VERSION_PREFIX}${userId}`);
-    return value !== null ? parseInt(value, 10) : null;
-  } catch (err) {
-    // Redis failure should never block auth — fallback to DB
-    logger.warn({
-      message: 'Redis GET failed — falling back to DB',
-      userId,
-      error: (err as Error).message,
-    }); return null;
-  }
-}
-
-/**
- * Set the tokenVersion in Redis cache.
- * Called after DB read (cache-aside population) or after version bump.
- */
-export async function setCachedTokenVersion(
-  userId: string,
-  version: number
-): Promise<void> {
-  try {
-    await redis.set(
-      `${TOKEN_VERSION_PREFIX}${userId}`,
-      version.toString(),
-      'EX',
-      TOKEN_VERSION_TTL
-    );
-  } catch (err) {
-    logger.warn({
-      message: 'Redis SET failed — cache not populated',
-      userId,
-      error: (err as Error).message,
-    });
-  }
-}
-
-/**
- * Invalidate the cached tokenVersion.
- * Called on: password change, account delete, account restore, forced logout.
- */
-export async function invalidateCachedTokenVersion(
-  userId: string
-): Promise<void> {
-  try {
-    await redis.del(`${TOKEN_VERSION_PREFIX}${userId}`);
-  } catch (err) {
-    logger.error({
-      message: 'CRITICAL: Redis DEL failed — stale token may remain cached',
-      userId,
-      error: (err as Error).message,
-    });
-  }
-}
 
 /**
  * Connect to Redis. Call during app startup.

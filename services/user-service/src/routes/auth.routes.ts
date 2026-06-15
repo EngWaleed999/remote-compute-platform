@@ -26,6 +26,7 @@ import {
 } from '../middlewares/rate-limit.js';
 import {
   registerSchema,
+  verifyEmailSchema,
   loginSchema,
   restoreRequestSchema,
   confirmRestoreSchema,
@@ -39,6 +40,14 @@ router.post(
   authLimiter,
   validate(registerSchema, 'body'),
   authController.register.bind(authController)
+);
+
+// POST /auth/verify-email — public (requires OTP sent via email)
+router.post(
+  '/verify-email',
+  authLimiter,
+  validate(verifyEmailSchema, 'body'),
+  authController.verifyEmail.bind(authController)
 );
 
 // POST /auth/login — public (no auth, no CSRF — first interaction)

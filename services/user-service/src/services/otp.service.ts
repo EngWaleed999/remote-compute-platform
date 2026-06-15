@@ -1,15 +1,14 @@
 import crypto from 'crypto'
 import { redis } from '../config/redis.js';
-import { fa } from 'zod/v4/locales';
 class OtpService {
 
     generateOTP(): string {
         const otp = crypto.randomInt(100000, 999999)
         return otp.toString()
     }
-    async storeOTP(userId: string, opt: string): Promise<void> {
+    async storeOTP(userId: string, otp: string): Promise<void> {
         const key = `otp:verification:${userId}`;
-        await redis.set(key, opt, 'EX', 300)
+        await redis.set(key, otp, 'EX', 300)
 
 
     }
@@ -27,3 +26,5 @@ class OtpService {
     }
 
 }
+
+export const otpService = new OtpService()

@@ -23,6 +23,10 @@ export type RegisterRequestDto =
 export type LoginRequestDto =
   paths['/auth/login']['post']['requestBody']['content']['application/json'];
 
+/** Verify Email request body — { userId, enteredOtp } */
+export type VerifyEmailRequestDto =
+  paths['/auth/verify-email']['post']['requestBody']['content']['application/json'];
+
 /** Refresh request body — { refreshToken } */
 export type RefreshRequestDto = components['schemas']['RefreshRequest'];
 
@@ -72,6 +76,12 @@ export const registerSchema = z.object({
     .max(100, 'Name is too long')
     .trim(),
 });
+
+/** Verify Email input validation */
+export const verifyEmailSchema = z.object({
+  userId: z.string({ required_error: 'User ID is required' }).uuid('Invalid User ID format'),
+  enteredOtp: z.string({ required_error: 'OTP is required' }).length(6, 'OTP must be exactly 6 digits'),
+}) satisfies z.ZodType<VerifyEmailRequestDto>;
 
 /** Login input validation */
 export const loginSchema = z.object({
