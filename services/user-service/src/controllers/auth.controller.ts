@@ -24,6 +24,7 @@ import type {
   ConfirmRequestDto,
   RequestMeta,
   VerifyEmailRequestDto,
+  ResendOtpRequestDto,
 } from '../dto/auth.dto.js';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookie.util.js';
 import { AppError } from '@repo/shared-utils';
@@ -82,6 +83,27 @@ class AuthControllerClass {
       const dto = req.body as VerifyEmailRequestDto;
       const meta = extractMeta(req);
       const result = await authService.verifyEmail(dto, meta);
+
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * POST /auth/resend-otp
+   * Resends a new OTP for email verification.
+   * Respects cooldown — returns 429 if called too soon.
+   */
+  async resendOtp(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const dto = req.body as ResendOtpRequestDto;
+      const meta = extractMeta(req);
+      const result = await authService.resendOtp(dto.userId, meta);
 
       res.status(200).json(result);
     } catch (error) {

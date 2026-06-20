@@ -49,7 +49,6 @@ import {
   invalidateCachedTokenVersion,
 } from '../cache/strategies/token-version.cache.js';
 import crypto from 'crypto';
-import { emailService } from './email.service.js';
 import { otpService } from './otp.service.js';
 
 /** Grace period for restore verification code (minutes) */
@@ -118,9 +117,8 @@ class AuthServiceClass {
       name: dto.name,
     });
 
-    const otp = otpService.generateOTP();
-    const storeOtp = await otpService.storeOTP(user.id, otp);
-    await emailService.sendEmailVerifiy(dto.email, otp)
+    // Generate OTP, store hash in Redis, set cooldown, and send email
+    await otpService.requestOtp(user.id, dto.email);
 
     // 4. Generate JWT tokens with tokenVersion
     const payload: JwtPayload = {
@@ -181,29 +179,45 @@ class AuthServiceClass {
 
   /**
    * Verify Email using OTP
-   * User submits the OTP received via email to confirm their account.
+   *
+   * Flow:
+   *   1. Validate user exists
+   *   2. Check if already verified
+   *   3. Verify OTP (handles attempts, lockout, expiry internally)
+   *   4. Mark emailVerified = true in DB
+   *   5. Audit log
    */
   async verifyEmail(dto: VerifyEmailRequestDto, meta: RequestMeta): Promise<{ message: string }> {
-    // 1. Validate OTP
-    const isValid = await otpService.verifiyOTP(dto.userId, dto.enteredOtp);
-    if (!isValid) {
-      throw new AppError('Invalid or expired OTP code', {
-        statusCode: 400,
-        code: 'INVALID_OTP',
+    // 1. Validate user exists
+    const user = await userRepository.findByEmail(dto.email);
+    if (!user) {
+      throw new AppError('User not found', {
+        statusCode: 404,
+        code: 'USER_NOT_FOUND',
       });
     }
 
-    // 2. Mark user email as verified
+    // 2. Check if already verified — no point re-verifying
+    if (user.emailVerified) {
+      throw new AppError('Email is already verified', {
+        statusCode: 409,
+        code: 'EMAIL_ALREADY_VERIFIED',
+      });
+    }
+
+    // 3. Verify OTP — throws AppError on failure (expired, invalid, locked out)
+    await otpService.verifyOtp(dto.userId, dto.enteredOtp);
+
+    // 4. Mark user email as verified
     await userRepository.update(dto.userId, { emailVerified: true });
 
-    // 3. Audit log
+    // 5. Audit log
     auditService.log({
       userId: dto.userId,
       action: 'EMAIL_VERIFIED',
       description: 'User successfully verified their email address',
       ipAddress: meta.ipAddress,
       userAgent: meta.userAgent,
-      
     });
 
     logger.info({
@@ -212,6 +226,50 @@ class AuthServiceClass {
     });
 
     return { message: 'Email verified successfully' };
+  }
+
+  /**
+   * Resend OTP for email verification.
+   *
+   * Flow:
+   *   1. Validate user exists
+   *   2. Check if already verified
+   *   3. Request new OTP (handles cooldown, generate, hash, store, send)
+   *
+   * WHY a separate method instead of reusing register flow?
+   * ───────────────────────────────────────────────────────
+   * Register creates a user + session + tokens + OTP.
+   * Resend ONLY generates a new OTP — no user creation, no new session.
+   * Mixing them would add confusing conditional logic.
+   */
+  async resendOtp(userId: string, meta: RequestMeta): Promise<{ message: string }> {
+    // 1. Validate user exists
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new AppError('User not found', {
+        statusCode: 404,
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // 2. Check if already verified — no point resending
+    if (user.emailVerified) {
+      throw new AppError('Email is already verified', {
+        statusCode: 409,
+        code: 'EMAIL_ALREADY_VERIFIED',
+      });
+    }
+
+    // 3. Request new OTP — cooldown check + generate + hash + store + send email
+    //    Throws OTP_COOLDOWN_ACTIVE (429) if too soon
+    await otpService.requestOtp(user.id, user.email);
+
+    logger.info({
+      message: 'OTP resent for email verification',
+      userId: user.id,
+    });
+
+    return { message: 'Verification code sent successfully' };
   }
 
   /**

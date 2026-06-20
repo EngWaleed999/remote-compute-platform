@@ -83,6 +83,17 @@ export const verifyEmailSchema = z.object({
   enteredOtp: z.string({ required_error: 'OTP is required' }).length(6, 'OTP must be exactly 6 digits'),
 }) satisfies z.ZodType<VerifyEmailRequestDto>;
 
+/** Resend OTP request body — { userId } */
+export interface ResendOtpRequestDto {
+  userId: string;
+}
+
+/** Resend OTP input validation */
+export const resendOtpSchema = z.object({
+  userId: z.string({ required_error: 'User ID is required' }).uuid('Invalid User ID format'),
+});
+
+
 /** Login input validation */
 export const loginSchema = z.object({
   email: z
