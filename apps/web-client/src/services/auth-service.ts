@@ -9,10 +9,14 @@ import type {
   RegisterRequest,
   RestoreRequest,
   ConfirmRestoreRequest,
+  VerifyEmailRequest,
+  ResendOtpRequest,
   AuthResponse,
   RestoreResponse,
   ConfirmRestoreResponse,
   RefreshResponse,
+  MessageResponse,
+  ResendOtpResponse,
 } from '@/types/api';
 
 export const authApi = {
@@ -39,4 +43,12 @@ export const authApi = {
   /** POST /auth/restore/confirm — no CSRF (uses code verification) */
   confirmRestore: (data: ConfirmRestoreRequest) =>
     api.post<ConfirmRestoreResponse>('/auth/restore/confirm', data).then((r) => r.data),
+
+  /** POST /auth/verify-email — no CSRF (public, uses OTP) */
+  verifyEmail: (data: VerifyEmailRequest) =>
+    api.post<MessageResponse>('/auth/verify-email', data).then((r) => r.data),
+
+  /** POST /auth/resend-otp — no CSRF (public, respects cooldown) */
+  resendOtp: (data: ResendOtpRequest) =>
+    api.post<ResendOtpResponse>('/auth/resend-otp', data).then((r) => r.data),
 };

@@ -27,6 +27,7 @@ import {
 import {
   registerSchema,
   verifyEmailSchema,
+  resendOtpSchema,
   loginSchema,
   restoreRequestSchema,
   confirmRestoreSchema,
@@ -48,6 +49,14 @@ router.post(
   authLimiter,
   validate(verifyEmailSchema, 'body'),
   authController.verifyEmail.bind(authController)
+);
+
+// POST /auth/resend-otp — public (respects cooldown per userId)
+router.post(
+  '/resend-otp',
+  sensitiveLimiter,
+  validate(resendOtpSchema, 'body'),
+  authController.resendOtp.bind(authController)
 );
 
 // POST /auth/login — public (no auth, no CSRF — first interaction)

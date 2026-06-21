@@ -28,7 +28,7 @@ class EmailService {
             html: emailTamplate(otp), // دمج الـ otp ديناميكياً داخل قالب الـ HTML
         };
         try {
-            this.transporter.sendMail(mailOptions)
+            await this.transporter.sendMail(mailOptions)
             logger.info({ message: "Send Verification successfully" })
 
         } catch (error: any) {

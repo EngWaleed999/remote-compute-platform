@@ -7,6 +7,7 @@ export interface User {
   id: string;
   email: string;
   name?: string;
+  emailVerified: boolean;
   createdAt: string;
 }
 
@@ -39,6 +40,24 @@ export interface ConfirmRestoreRequest {
   email: string;
   newPassword: string;
   code: string;
+}
+
+export interface VerifyEmailRequest {
+  userId: string;
+  enteredOtp: string;
+}
+
+export interface ResendOtpRequest {
+  userId: string;
+}
+
+export interface MessageResponse {
+  message: string;
+}
+
+export interface ResendOtpResponse {
+  message: string;
+  cooldown: number;
 }
 
 /** Response from POST /auth/login and /auth/register */

@@ -8,7 +8,7 @@ import { authApi } from '@/services/auth-service';
 import { useAuthStore } from '@/store/auth-store';
 import { extractApiError } from '@/lib/api-client';
 import { toast } from 'sonner';
-import type { LoginRequest, RegisterRequest, RestoreRequest, ConfirmRestoreRequest } from '@/types/api';
+import type { LoginRequest, RegisterRequest, RestoreRequest, ConfirmRestoreRequest, VerifyEmailRequest, ResendOtpRequest } from '@/types/api';
 
 export function useLogin() {
   const setUser = useAuthStore((s) => s.setUser);
@@ -35,8 +35,8 @@ export function useRegister() {
     mutationFn: (data: RegisterRequest) => authApi.register(data),
     onSuccess: (data) => {
       setUser(data.user);
-      toast.success('Account created successfully!');
-      navigate('/dashboard', { replace: true });
+      toast.success('Account created! Please verify your email.');
+      navigate('/auth/verify-email', { state: { userId: data.user.id, email: data.user.email }, replace: true });
     },
     onError: (error) => {
       toast.error(extractApiError(error));
@@ -87,6 +87,39 @@ export function useConfirmRestore() {
       setUser(data.user);
       toast.success(data.message);
       navigate('/dashboard', { replace: true });
+    },
+    onError: (error) => {
+      toast.error(extractApiError(error));
+    },
+  });
+}
+
+export function useVerifyEmail() {
+  const navigate = useNavigate();
+  const setUser = useAuthStore((s) => s.setUser);
+  const user = useAuthStore((s) => s.user);
+
+  return useMutation({
+    mutationFn: (data: VerifyEmailRequest) => authApi.verifyEmail(data),
+    onSuccess: (data) => {
+      // Update local state so ProtectedRoute allows entry
+      if (user) {
+        setUser({ ...user, emailVerified: true });
+      }
+      toast.success(data.message);
+      navigate('/dashboard', { replace: true });
+    },
+    onError: (error) => {
+      toast.error(extractApiError(error));
+    },
+  });
+}
+
+export function useResendOtp() {
+  return useMutation({
+    mutationFn: (data: ResendOtpRequest) => authApi.resendOtp(data),
+    onSuccess: (data) => {
+      toast.success(data.message);
     },
     onError: (error) => {
       toast.error(extractApiError(error));
