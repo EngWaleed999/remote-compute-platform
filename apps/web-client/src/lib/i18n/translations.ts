@@ -76,6 +76,14 @@ export const translations = {
     'auth.and': 'and',
     'auth.signInRedirect': 'Please sign in to access that page.',
 
+    // Verify Email
+    'verify.title': 'Verify your email',
+    'verify.desc': 'Enter the 6-digit code we sent to',
+    'verify.verifyButton': 'Verify email',
+    'verify.noCode': "Didn't receive the code?",
+    'verify.resend': 'Resend code',
+    'verify.resendIn': 'Resend in',
+
     // Restore
     'restore.title': 'Restore your account',
     'restore.desc': 'Enter your email to receive a verification code',
@@ -128,6 +136,8 @@ export const translations = {
     'settings.emailNoChange': 'Email cannot be changed at this time',
     'settings.displayName': 'Display name',
     'settings.displayNamePlaceholder': 'Your name',
+    'settings.emailVerified': 'Verified',
+    'settings.emailNotVerified': 'Verify now',
     'settings.accountInfo': 'Account Information',
     'settings.accountId': 'Account ID',
     'settings.memberSince': 'Member since',
@@ -270,6 +280,14 @@ export const translations = {
     'auth.and': 'و',
     'auth.signInRedirect': 'يرجى تسجيل الدخول للوصول إلى هذه الصفحة.',
 
+    // Verify Email
+    'verify.title': 'تحقق من بريدك الإلكتروني',
+    'verify.desc': 'أدخل الرمز المكون من ٦ أرقام الذي أرسلناه إلى',
+    'verify.verifyButton': 'تحقق من البريد',
+    'verify.noCode': 'لم تستلم الرمز؟',
+    'verify.resend': 'إعادة الإرسال',
+    'verify.resendIn': 'إعادة الإرسال بعد',
+
     // Restore
     'restore.title': 'استعادة حسابك',
     'restore.desc': 'أدخل بريدك الإلكتروني لاستلام رمز التحقق',
@@ -320,8 +338,10 @@ export const translations = {
     'settings.profile': 'الملف الشخصي',
     'settings.profileDesc': 'تحديث اسم العرض والمعلومات الشخصية',
     'settings.emailNoChange': 'لا يمكن تغيير البريد الإلكتروني حالياً',
-    'settings.displayName': 'اسم العرض',
+    'settings.displayName': 'الاسم المعروض',
     'settings.displayNamePlaceholder': 'اسمك',
+    'settings.emailVerified': 'موثّق',
+    'settings.emailNotVerified': 'توثيق الآن',
     'settings.accountInfo': 'معلومات الحساب',
     'settings.accountId': 'معرّف الحساب',
     'settings.memberSince': 'عضو منذ',

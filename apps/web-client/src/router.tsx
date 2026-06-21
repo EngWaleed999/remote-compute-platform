@@ -16,6 +16,7 @@ const LoginPage = lazy(() => import('@/pages/auth/login').then((m) => ({ default
 const RegisterPage = lazy(() => import('@/pages/auth/register').then((m) => ({ default: m.RegisterPage })));
 const RestorePage = lazy(() => import('@/pages/auth/restore').then((m) => ({ default: m.RestorePage })));
 const SessionExpiredPage = lazy(() => import('@/pages/auth/session-expired').then((m) => ({ default: m.SessionExpiredPage })));
+const VerifyEmailPage = lazy(() => import('@/pages/auth/verify-email').then((m) => ({ default: m.VerifyEmailPage })));
 const DashboardPage = lazy(() => import('@/pages/dashboard/index').then((m) => ({ default: m.DashboardPage })));
 const AccountSettingsPage = lazy(() => import('@/pages/settings/account').then((m) => ({ default: m.AccountSettingsPage })));
 const SecuritySettingsPage = lazy(() => import('@/pages/settings/security').then((m) => ({ default: m.SecuritySettingsPage })));
@@ -66,6 +67,19 @@ export const router = createBrowserRouter([
       { path: 'auth/login', element: <LoginPage /> },
       { path: 'auth/register', element: <RegisterPage /> },
       { path: 'auth/restore', element: <RestorePage /> },
+    ],
+  },
+
+  // Verify email (standalone — no guard, accessible to both authenticated and unauthenticated)
+  // The page itself handles redirect if no userId is provided
+  {
+    element: (
+      <SuspenseWrapper>
+        <AuthLayout />
+      </SuspenseWrapper>
+    ),
+    children: [
+      { path: 'auth/verify-email', element: <VerifyEmailPage /> },
     ],
   },
 

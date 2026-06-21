@@ -1,8 +1,9 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { User, Mail, Save } from 'lucide-react';
+import { User, Mail, Save, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ export function AccountSettingsPage() {
   const authUser = useAuthStore((s) => s.user);
   const updateProfile = useUpdateProfile();
   const { t } = useI18n();
+  const navigate = useNavigate();
 
   const profileSchema = z.object({
     name: z.string().min(1, t('validation.nameRequired')).max(100, t('validation.nameTooLong')),
@@ -74,7 +76,7 @@ export function AccountSettingsPage() {
           <CardContent>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
               <div className="space-y-4">
-                <div className="space-y-2">
+               <div className="space-y-2">
                   <Label htmlFor="email">{t('auth.email')}</Label>
                   <div className="relative">
                     <Mail className="absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -85,7 +87,24 @@ export function AccountSettingsPage() {
                       className="ps-10 opacity-60"
                     />
                   </div>
-                  <p className="text-xs text-muted-foreground">{t('settings.emailNoChange')}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">{t('settings.emailNoChange')}</p>
+                    {authUser?.emailVerified ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="h-3 w-3" />
+                        {t('settings.emailVerified')}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => navigate('/auth/verify-email')}
+                        className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600 dark:text-amber-400 hover:bg-amber-500/20 transition-colors cursor-pointer"
+                      >
+                        <AlertTriangle className="h-3 w-3" />
+                        {t('settings.emailNotVerified')}
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-2">

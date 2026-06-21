@@ -118,7 +118,17 @@ class AuthServiceClass {
     });
 
     // Generate OTP, store hash in Redis, set cooldown, and send email
-    await otpService.requestOtp(user.id, dto.email);
+    // Wrapped in try-catch so that if email sending fails (e.g. SMTP down/no internet),
+    // the user is still created successfully and can use the "resend OTP" button later.
+    try {
+      await otpService.requestOtp(user.id, dto.email);
+    } catch (error: any) {
+      logger.error({
+        message: 'Failed to send OTP during registration, but user was created',
+        userId: user.id,
+        error: error.message,
+      });
+    }
 
     // 4. Generate JWT tokens with tokenVersion
     const payload: JwtPayload = {
@@ -242,7 +252,7 @@ class AuthServiceClass {
    * Resend ONLY generates a new OTP — no user creation, no new session.
    * Mixing them would add confusing conditional logic.
    */
-  async resendOtp(userId: string, meta: RequestMeta): Promise<{ message: string }> {
+  async resendOtp(userId: string, meta: RequestMeta): Promise<{ message: string; cooldown: number }> {
     // 1. Validate user exists
     const user = await userRepository.findById(userId);
     if (!user) {
@@ -262,14 +272,15 @@ class AuthServiceClass {
 
     // 3. Request new OTP — cooldown check + generate + hash + store + send email
     //    Throws OTP_COOLDOWN_ACTIVE (429) if too soon
-    await otpService.requestOtp(user.id, user.email);
+    const { cooldown } = await otpService.requestOtp(user.id, user.email);
 
+    // 4. Audit log
     logger.info({
       message: 'OTP resent for email verification',
       userId: user.id,
     });
 
-    return { message: 'Verification code sent successfully' };
+    return { message: 'Verification code sent successfully', cooldown };
   }
 
   /**

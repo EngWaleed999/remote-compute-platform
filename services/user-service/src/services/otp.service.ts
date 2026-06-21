@@ -56,7 +56,7 @@ class OtpService {
    * OTP service is a pure utility: "give me a userId + email,
    * I'll handle the OTP flow."
    */
-  async requestOtp(userId: string, email: string): Promise<void> {
+  async requestOtp(userId: string, email: string): Promise<{ cooldown: number }> {
 
     // 1. Check cooldown — reject early if user is rate-limited
     const onCooldown = await otpRepository.hasCooldown(userId);
@@ -83,16 +83,29 @@ class OtpService {
     // 5. Reset failed attempts — new OTP = fresh attempts
     await otpRepository.deleteAttempts(userId);
 
-    // 6. Set cooldown — BEFORE email to prevent spam even if email fails
-    await otpRepository.setCooldown(userId);
+    // 6. Calculate dynamic cooldown based on request count
+    const resendCount = await otpRepository.incrementResendCount(userId);
+    let cooldownDuration = 60; // Default 1 minute
+    if (resendCount === 3 || resendCount === 4) {
+      cooldownDuration = 300; // 5 minutes
+    } else if (resendCount > 4) {
+      cooldownDuration = 600; // 10 minutes
+    }
 
-    // 7. Send email with plaintext OTP
+    // 7. Set cooldown — BEFORE email to prevent spam even if email fails
+    await otpRepository.setCooldown(userId, cooldownDuration);
+
+    // 8. Send email with plaintext OTP
     await emailService.sendEmailVerifiy(email, otp);
 
     logger.info({
       message: 'OTP requested successfully',
       userId,
+      resendCount,
+      cooldownDuration,
     });
+
+    return { cooldown: cooldownDuration };
   }
 
   // ═══════════════════════════════════════════════════

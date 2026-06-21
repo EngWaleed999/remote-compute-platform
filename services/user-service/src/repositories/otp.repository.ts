@@ -64,9 +64,9 @@ class OtpRepository {
   // ═══════════════════════════════════════════════════
 
 
-  async setCooldown(userId: string): Promise<void> {
+  async setCooldown(userId: string, durationInSeconds: number = OTP_COOLDOWN): Promise<void> {
     const key = otpKeys.cooldown(userId);
-    await redis.set(key, '1', 'EX', OTP_COOLDOWN);
+    await redis.set(key, '1', 'EX', durationInSeconds);
   }
 
 
@@ -79,6 +79,20 @@ class OtpRepository {
   async getCooldownTTL(userId: string): Promise<number> {
     const key = otpKeys.cooldown(userId);
     return redis.ttl(key);
+  }
+
+  // ═══════════════════════════════════════════════════
+  // 4️⃣  Resend Tracking (Dynamic Cooldown)
+  // ═══════════════════════════════════════════════════
+
+  async incrementResendCount(userId: string): Promise<number> {
+    const key = otpKeys.resendCount(userId);
+    const count = await redis.incr(key);
+    
+    // Set TTL to 24 hours (86400s) on every increment to maintain a rolling window
+    await redis.expire(key, 86400);
+    
+    return count;
   }
 
   // ═══════════════════════════════════════════════════

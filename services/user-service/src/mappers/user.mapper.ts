@@ -16,6 +16,7 @@ export function toUserResponse(user: User): UserResponseDto {
     id: user.id,
     email: user.email,
     name: user.name ?? undefined,
+    emailVerified: user.emailVerified,
     createdAt: user.createdAt.toISOString(),
   };
 }
