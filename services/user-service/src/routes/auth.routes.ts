@@ -28,6 +28,7 @@ import {
   registerSchema,
   verifyEmailSchema,
   resendOtpSchema,
+  updateUnverifiedEmailSchema,
   loginSchema,
   restoreRequestSchema,
   confirmRestoreSchema,
@@ -57,6 +58,14 @@ router.post(
   sensitiveLimiter,
   validate(resendOtpSchema, 'body'),
   authController.resendOtp.bind(authController)
+);
+
+// PATCH /auth/update-email — update email for unverified accounts (max 3/day)
+router.patch(
+  '/update-email',
+  sensitiveLimiter,
+  validate(updateUnverifiedEmailSchema, 'body'),
+  authController.updateUnverifiedEmail.bind(authController)
 );
 
 // POST /auth/login — public (no auth, no CSRF — first interaction)

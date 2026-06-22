@@ -8,7 +8,7 @@ import { authApi } from '@/services/auth-service';
 import { useAuthStore } from '@/store/auth-store';
 import { extractApiError } from '@/lib/api-client';
 import { toast } from 'sonner';
-import type { LoginRequest, RegisterRequest, RestoreRequest, ConfirmRestoreRequest, VerifyEmailRequest, ResendOtpRequest } from '@/types/api';
+import type { LoginRequest, RegisterRequest, RestoreRequest, ConfirmRestoreRequest, VerifyEmailRequest, ResendOtpRequest, UpdateEmailRequest } from '@/types/api';
 
 export function useLogin() {
   const setUser = useAuthStore((s) => s.setUser);
@@ -119,6 +119,25 @@ export function useResendOtp() {
   return useMutation({
     mutationFn: (data: ResendOtpRequest) => authApi.resendOtp(data),
     onSuccess: (data) => {
+      toast.success(data.message);
+    },
+    onError: (error) => {
+      toast.error(extractApiError(error));
+    },
+  });
+}
+
+export function useUpdateEmail() {
+  const setUser = useAuthStore((s) => s.setUser);
+  const user = useAuthStore((s) => s.user);
+
+  return useMutation({
+    mutationFn: (data: UpdateEmailRequest) => authApi.updateEmail(data),
+    onSuccess: (data) => {
+      // Update local auth store with new email
+      if (user) {
+        setUser({ ...user, email: data.email });
+      }
       toast.success(data.message);
     },
     onError: (error) => {

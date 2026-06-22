@@ -96,6 +96,24 @@ class OtpRepository {
   }
 
   // ═══════════════════════════════════════════════════
+  // 5️⃣  Email Change Tracking (abuse prevention)
+  // ═══════════════════════════════════════════════════
+
+  async incrementEmailChanges(userId: string): Promise<number> {
+    const key = otpKeys.emailChanges(userId);
+    const count = await redis.incr(key);
+
+    // 24-hour rolling window — resets after a day of inactivity
+    await redis.expire(key, 86400);
+
+    return count;
+  }
+
+  async getEmailChanges(userId: string): Promise<number> {
+    const key = otpKeys.emailChanges(userId);
+    const value = await redis.get(key);
+    return value ? parseInt(value, 10) : 0;
+  }
   // 4️⃣  Cleanup (delete all OTP data for a user)
   // ═══════════════════════════════════════════════════
 

@@ -1,9 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import { Mail, ArrowRight, RefreshCw, ShieldCheck } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Mail, ArrowRight, RefreshCw, ShieldCheck, Pencil, X, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useVerifyEmail, useResendOtp } from '@/hooks/use-auth';
+import { Input } from '@/components/ui/input';
+import { useVerifyEmail, useResendOtp, useUpdateEmail } from '@/hooks/use-auth';
 import { useAuthStore } from '@/store/auth-store';
 import { useI18n } from '@/lib/i18n';
 
@@ -16,7 +17,11 @@ export function VerifyEmailPage() {
   // Resolve userId + email from route state (post-register) or auth store (redirect)
   const routeState = location.state as { userId?: string; email?: string } | null;
   const userId = routeState?.userId || authUser?.id;
-  const email = routeState?.email || authUser?.email;
+  const [currentEmail, setCurrentEmail] = useState(routeState?.email || authUser?.email || '');
+
+  // Edit email state
+  const [isEditingEmail, setIsEditingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
 
   // Redirect if no userId from any source (direct URL access without being logged in)
   useEffect(() => {
@@ -25,8 +30,16 @@ export function VerifyEmailPage() {
     }
   }, [userId, navigate]);
 
+  // Sync email from auth store if it changes
+  useEffect(() => {
+    if (authUser?.email) {
+      setCurrentEmail(authUser.email);
+    }
+  }, [authUser?.email]);
+
   const verifyMutation = useVerifyEmail();
   const resendMutation = useResendOtp();
+  const updateEmailMutation = useUpdateEmail();
 
   const [otp, setOtp] = useState<string[]>(Array(6).fill(''));
   const [cooldown, setCooldown] = useState(60);
@@ -103,6 +116,39 @@ export function VerifyEmailPage() {
     );
   };
 
+  const handleEditEmail = () => {
+    setNewEmail(currentEmail);
+    setIsEditingEmail(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingEmail(false);
+    setNewEmail('');
+  };
+
+  const handleSaveEmail = () => {
+    if (!userId || !newEmail || newEmail === currentEmail) return;
+
+    updateEmailMutation.mutate(
+      { userId, newEmail },
+      {
+        onSuccess: (data) => {
+          setCurrentEmail(data.email);
+          setIsEditingEmail(false);
+          setNewEmail('');
+          // Reset OTP inputs since old code is now invalid
+          setOtp(Array(6).fill(''));
+          // Set new cooldown from backend
+          if (data.cooldown > 0) {
+            setCooldown(data.cooldown);
+          }
+          // Refocus first OTP input
+          setTimeout(() => inputRefs.current[0]?.focus(), 100);
+        },
+      }
+    );
+  };
+
   const formatCooldown = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
@@ -130,11 +176,72 @@ export function VerifyEmailPage() {
         <p className="text-sm text-muted-foreground">
           {t('verify.desc')}
         </p>
-        {email && (
-          <p className="text-sm font-medium text-foreground">
-            {email}
-          </p>
-        )}
+
+        {/* Email display with edit capability */}
+        <AnimatePresence mode="wait">
+          {isEditingEmail ? (
+            <motion.div
+              key="editing"
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-center justify-center gap-2 pt-1"
+            >
+              <Input
+                type="email"
+                value={newEmail}
+                onChange={(e) => setNewEmail(e.target.value)}
+                placeholder={t('verify.newEmailPlaceholder')}
+                className="max-w-[220px] h-8 text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveEmail();
+                  if (e.key === 'Escape') handleCancelEdit();
+                }}
+              />
+              <button
+                onClick={handleSaveEmail}
+                disabled={!newEmail || newEmail === currentEmail || updateEmailMutation.isPending}
+                className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={t('verify.saveEmail')}
+              >
+                {updateEmailMutation.isPending ? (
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Check className="h-3.5 w-3.5" />
+                )}
+              </button>
+              <button
+                onClick={handleCancelEdit}
+                className="flex h-8 w-8 items-center justify-center rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors"
+                title={t('verify.cancelEdit')}
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </motion.div>
+          ) : (
+            <motion.div
+              key="display"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex items-center justify-center gap-1.5 pt-1"
+            >
+              {currentEmail && (
+                <p className="text-sm font-medium text-foreground">
+                  {currentEmail}
+                </p>
+              )}
+              <button
+                onClick={handleEditEmail}
+                className="flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
+                title={t('verify.editEmail')}
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
 
       <motion.div
