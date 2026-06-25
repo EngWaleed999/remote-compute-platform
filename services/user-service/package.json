@@ -10,7 +10,10 @@
     "build": "tsc",
     "db": "prisma migrate dev",
     "generate": "prisma generate",
-    "studio": "prisma studio"
+    "studio": "prisma studio",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:ui": "vitest --ui"
   },
   "dependencies": {
     "@prisma/adapter-pg": "7.4.1",
@@ -20,6 +23,7 @@
     "@repo/shared-types": "workspace:*",
     "@repo/shared-utils": "workspace:*",
     "bcryptjs": "^3.0.3",
+    "bullmq": "^5.71.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
     "dotenv": "17.3.1",
@@ -41,9 +45,13 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^25.5.0",
     "@types/nodemailer": "^7.0.11",
+    "@types/supertest": "^7.2.0",
+    "@vitest/ui": "^4.1.9",
     "prisma": "^7.5.0",
     "prisma-zod-generator": "^2.1.4",
+    "supertest": "^7.2.2",
     "tsx": "^4.21.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "vitest": "^4.1.9"
   }
 }
