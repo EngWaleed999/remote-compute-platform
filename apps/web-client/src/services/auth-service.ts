@@ -11,12 +11,14 @@ import type {
   ConfirmRestoreRequest,
   VerifyEmailRequest,
   ResendOtpRequest,
+  UpdateEmailRequest,
   AuthResponse,
   RestoreResponse,
   ConfirmRestoreResponse,
   RefreshResponse,
   MessageResponse,
   ResendOtpResponse,
+  UpdateEmailResponse,
 } from '@/types/api';
 
 export const authApi = {
@@ -51,4 +53,8 @@ export const authApi = {
   /** POST /auth/resend-otp — no CSRF (public, respects cooldown) */
   resendOtp: (data: ResendOtpRequest) =>
     api.post<ResendOtpResponse>('/auth/resend-otp', data).then((r) => r.data),
+
+  /** PATCH /auth/update-email — update email for unverified accounts */
+  updateEmail: (data: UpdateEmailRequest) =>
+    api.patch<UpdateEmailResponse>('/auth/update-email', data).then((r) => r.data),
 };

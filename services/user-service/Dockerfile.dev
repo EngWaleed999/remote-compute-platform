@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ─────────────────────────────────────────────────────────────────────────────
 # Dockerfile.dev — Development-Only Image for user-service
 # ─────────────────────────────────────────────────────────────────────────────
@@ -69,8 +70,24 @@ COPY services/user-service/package.json ./services/user-service/
 # │   • typescript (for type checking)                                     │
 # │   • prisma CLI (for migrations)                                        │
 # │   • @types/* (for IDE support inside the container)                    │
+# │                                                                         │
+# │ --mount=type=cache (BuildKit Cache Mount)                               │
+# │ ─────────────────────────────────────────                               │
+# │ This tells Docker to mount a PERSISTENT cache directory at the          │
+# │ pnpm store path. Unlike normal Docker layer caching, this cache        │
+# │ survives even when the layer is invalidated (e.g. package.json         │
+# │ changed). Result:                                                       │
+# │   • First build: downloads everything (normal)                          │
+# │   • Next builds: only downloads NEW packages, rest comes from cache    │
+# │                                                                         │
+# │ IMPORTANT: Requires DOCKER_BUILDKIT=1 or `docker buildx build`.       │
+# │ docker-compose v2+ enables BuildKit by default.                        │
 # └─────────────────────────────────────────────────────────────────────────┘
-RUN pnpm install --frozen-lockfile
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    pnpm config set store-dir /pnpm/store && \
+    pnpm install --frozen-lockfile
 
 
 

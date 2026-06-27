@@ -25,6 +25,7 @@ import type {
   RequestMeta,
   VerifyEmailRequestDto,
   ResendOtpRequestDto,
+  UpdateUnverifiedEmailRequestDto,
 } from '../dto/auth.dto.js';
 import { setAuthCookies, clearAuthCookies } from '../utils/cookie.util.js';
 import { AppError } from '@repo/shared-utils';
@@ -104,6 +105,27 @@ class AuthControllerClass {
       const dto = req.body as ResendOtpRequestDto;
       const meta = extractMeta(req);
       const result = await authService.resendOtp(dto.userId, meta);
+
+      res.status(200).json(result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * PATCH /auth/update-email
+   * Updates email for an unverified account + sends new OTP.
+   * Limited to 3 changes per 24h. Only for emailVerified = false.
+   */
+  async updateUnverifiedEmail(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const dto = req.body as UpdateUnverifiedEmailRequestDto;
+      const meta = extractMeta(req);
+      const result = await authService.updateUnverifiedEmail(dto.userId, dto.newEmail, meta);
 
       res.status(200).json(result);
     } catch (error) {

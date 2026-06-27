@@ -50,6 +50,7 @@ import {
 } from '../cache/strategies/token-version.cache.js';
 import crypto from 'crypto';
 import { otpService } from './otp.service.js';
+import { otpRepository } from '../repositories/otp.repository.js';
 
 /** Grace period for restore verification code (minutes) */
 
@@ -281,6 +282,119 @@ class AuthServiceClass {
     });
 
     return { message: 'Verification code sent successfully', cooldown };
+  }
+
+  /**
+   * Update email for an unverified account.
+   *
+   * Use case: User registers with wrong email, realizes mistake on OTP page.
+   *
+   * Security:
+   *   1. Only allowed for accounts where emailVerified = false
+   *   2. Max 3 email changes per 24h window (tracked in Redis)
+   *   3. New email must not already be registered
+   *   4. Invalidates old OTP data + sends new OTP to new email
+   *   5. Counts as a resend (feeds into dynamic cooldown)
+   *
+   * SRP: This method ONLY changes the email + triggers new OTP.
+   *      It does NOT create sessions, tokens, or anything else.
+   */
+  async updateUnverifiedEmail(
+    userId: string,
+    newEmail: string,
+    meta: RequestMeta
+  ): Promise<{ message: string; cooldown: number; email: string }> {
+    // 1. Validate user exists
+    const user = await userRepository.findById(userId);
+    if (!user) {
+      throw new AppError('User not found', {
+        statusCode: 404,
+        code: 'USER_NOT_FOUND',
+      });
+    }
+
+    // 2. Only unverified accounts can change email
+    if (user.emailVerified) {
+      throw new AppError('Cannot change email for a verified account', {
+        statusCode: 403,
+        code: 'EMAIL_ALREADY_VERIFIED',
+      });
+    }
+
+    // 3. Check email change limit (max 3 per 24h)
+    const { MAX_EMAIL_CHANGES } = await import('../constants/otp.constanst.js');
+    const currentChanges = await otpRepository.getEmailChanges(userId);
+    if (currentChanges >= MAX_EMAIL_CHANGES) {
+      throw new AppError(
+        `You can only change your email ${MAX_EMAIL_CHANGES} times per day. Please try again later.`,
+        {
+          statusCode: 429,
+          code: 'EMAIL_CHANGE_LIMIT_REACHED',
+        }
+      );
+    }
+
+    // 4. Ensure new email is not the same as current
+    if (user.email === newEmail) {
+      throw new AppError('New email is the same as your current email', {
+        statusCode: 400,
+        code: 'EMAIL_UNCHANGED',
+      });
+    }
+
+    // 5. Check new email is not already taken
+    const existingUser = await userRepository.findByEmail(newEmail);
+    if (existingUser) {
+      throw new AppError('This email is already registered', {
+        statusCode: 409,
+        code: 'EMAIL_ALREADY_EXISTS',
+      });
+    }
+
+    // 6. Update user email in database
+    await userRepository.update(userId, { email: newEmail });
+
+    // 7. Invalidate old OTP data (old email's OTP is now useless)
+    await otpRepository.deleteAll(userId);
+
+    // 8. Increment email change counter
+    await otpRepository.incrementEmailChanges(userId);
+
+    // 9. Send new OTP to the new email (respects cooldown system)
+    //    If cooldown is active from a recent resend, this will throw OTP_COOLDOWN_ACTIVE
+    let cooldown = 60;
+    try {
+      const result = await otpService.requestOtp(userId, newEmail);
+      cooldown = result.cooldown;
+    } catch (error: any) {
+      // If cooldown is active, the email was still changed successfully
+      // User just needs to wait before requesting a new OTP
+      if (error.code === 'OTP_COOLDOWN_ACTIVE') {
+        logger.info({
+          message: 'Email changed but OTP cooldown active — user must wait',
+          userId,
+          newEmail,
+        });
+        return {
+          message: 'Email updated successfully. Please wait before requesting a new code.',
+          cooldown: 0,
+          email: newEmail,
+        };
+      }
+      throw error;
+    }
+
+    logger.info({
+      message: 'Unverified email updated and new OTP sent',
+      userId,
+      newEmail,
+    });
+
+    return {
+      message: 'Email updated and verification code sent',
+      cooldown,
+      email: newEmail,
+    };
   }
 
   /**

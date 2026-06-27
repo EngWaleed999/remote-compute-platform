@@ -83,6 +83,10 @@ export const translations = {
     'verify.noCode': "Didn't receive the code?",
     'verify.resend': 'Resend code',
     'verify.resendIn': 'Resend in',
+    'verify.editEmail': 'Edit email',
+    'verify.newEmailPlaceholder': 'Enter new email',
+    'verify.saveEmail': 'Save email',
+    'verify.cancelEdit': 'Cancel',
 
     // Restore
     'restore.title': 'Restore your account',
@@ -287,6 +291,10 @@ export const translations = {
     'verify.noCode': 'لم تستلم الرمز؟',
     'verify.resend': 'إعادة الإرسال',
     'verify.resendIn': 'إعادة الإرسال بعد',
+    'verify.editEmail': 'تعديل البريد',
+    'verify.newEmailPlaceholder': 'أدخل البريد الجديد',
+    'verify.saveEmail': 'حفظ البريد',
+    'verify.cancelEdit': 'إلغاء',
 
     // Restore
     'restore.title': 'استعادة حسابك',

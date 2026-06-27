@@ -93,6 +93,22 @@ export const resendOtpSchema = z.object({
   userId: z.string({ required_error: 'User ID is required' }).uuid('Invalid User ID format'),
 });
 
+/** Update unverified email request body — { userId, newEmail } */
+export interface UpdateUnverifiedEmailRequestDto {
+  userId: string;
+  newEmail: string;
+}
+
+/** Update unverified email input validation */
+export const updateUnverifiedEmailSchema = z.object({
+  userId: z.string({ required_error: 'User ID is required' }).uuid('Invalid User ID format'),
+  newEmail: z
+    .string({ required_error: 'New email is required' })
+    .email('Invalid email format')
+    .toLowerCase()
+    .trim(),
+});
+
 
 /** Login input validation */
 export const loginSchema = z.object({

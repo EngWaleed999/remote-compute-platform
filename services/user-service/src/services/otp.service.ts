@@ -23,6 +23,7 @@ import { hashToken } from '../utils/token.util.js';
 import { OTP_LENGTH, OTP_MAX_ATTEMPTS } from '../constants/otp.constanst.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '@repo/shared-utils';
+import { jobService } from './job.service.js';
 
 class OtpService {
 
@@ -95,8 +96,8 @@ class OtpService {
     // 7. Set cooldown — BEFORE email to prevent spam even if email fails
     await otpRepository.setCooldown(userId, cooldownDuration);
 
-    // 8. Send email with plaintext OTP
-    await emailService.sendEmailVerifiy(email, otp);
+    // 8. Send email with plaintext OTP (via Background Job Queue Adapter)
+    await jobService.enqueueSendOtpEmail({ to: email, otp });
 
     logger.info({
       message: 'OTP requested successfully',
@@ -135,12 +136,23 @@ class OtpService {
    */
   async verifyOtp(userId: string, enteredOtp: string): Promise<true> {
 
-    // 1. Check lockout — are they already blocked?
-    const currentAttempts = await otpRepository.getAttempts(userId);
-    if (currentAttempts >= OTP_MAX_ATTEMPTS) {
-      // Delete the OTP — force them to request a new one
-      await otpRepository.deleteOtp(userId);
+    // 1. Hash the entered OTP
+    const enteredHash = hashToken(enteredOtp);
 
+    // 2. Execute the Atomic Lua Script
+    const [statusCode, data] = await otpRepository.verifyOtpAtomic(
+      userId,
+      enteredHash,
+      OTP_MAX_ATTEMPTS
+    );
+
+    // 3. Handle the responses from Lua
+    if (statusCode === 1) {
+      logger.info({ message: 'OTP verified successfully (Atomic)', userId });
+      return true;
+    }
+
+    if (statusCode === -1 || statusCode === -3) {
       throw new AppError(
         'Too many failed attempts. Please request a new verification code',
         {
@@ -150,9 +162,7 @@ class OtpService {
       );
     }
 
-    // 2. Get stored OTP hash from Redis
-    const storedHash = await otpRepository.getOtp(userId);
-    if (!storedHash) {
+    if (statusCode === -2) {
       throw new AppError(
         'Verification code has expired. Please request a new one',
         {
@@ -162,27 +172,8 @@ class OtpService {
       );
     }
 
-    // 3. Hash the entered OTP and compare
-    const enteredHash = hashToken(enteredOtp);
-
-    if (enteredHash !== storedHash) {
-      // 4. Wrong OTP — increment attempts
-      const newCount = await otpRepository.incrementAttempts(userId);
-      const remaining = OTP_MAX_ATTEMPTS - newCount;
-
-      // If this attempt just hit the limit, delete the OTP
-      if (newCount >= OTP_MAX_ATTEMPTS) {
-        await otpRepository.deleteOtp(userId);
-
-        throw new AppError(
-          'Too many failed attempts. Please request a new verification code',
-          {
-            statusCode: 429,
-            code: 'OTP_MAX_ATTEMPTS_EXCEEDED',
-          }
-        );
-      }
-
+    if (statusCode === 0) {
+      const remaining = OTP_MAX_ATTEMPTS - data; // data = newCount
       throw new AppError(
         `Invalid verification code. ${remaining} attempt(s) remaining`,
         {
@@ -192,15 +183,10 @@ class OtpService {
       );
     }
 
-    // 5. Match — clean up all OTP data (verification + attempts + cooldown)
-    await otpRepository.deleteAll(userId);
-
-    logger.info({
-      message: 'OTP verified successfully',
-      userId,
+    throw new AppError('Unknown OTP verification error', {
+      statusCode: 500,
+      code: 'INTERNAL_SERVER_ERROR',
     });
-
-    return true;
   }
 
   // ═══════════════════════════════════════════════════

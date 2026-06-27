@@ -60,6 +60,17 @@ export interface ResendOtpResponse {
   cooldown: number;
 }
 
+export interface UpdateEmailRequest {
+  userId: string;
+  newEmail: string;
+}
+
+export interface UpdateEmailResponse {
+  message: string;
+  cooldown: number;
+  email: string;
+}
+
 /** Response from POST /auth/login and /auth/register */
 export interface AuthResponse {
   accessToken: string;
