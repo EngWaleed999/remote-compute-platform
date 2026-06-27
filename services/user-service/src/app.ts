@@ -55,8 +55,23 @@ app.get('/health', (_req, res) => {
 });
 
 // ═══════════════════════════════════════════════════
-// 5️⃣ API Routes
+// 5️⃣ API Routes & Bull-Board Dashboard & Metrics
 // ═══════════════════════════════════════════════════
+import { bullBoardRouter } from './jobs/bull-board.js';
+import { register } from './config/metrics.js';
+
+app.use('/admin/queues', bullBoardRouter); // Dashboard UI
+
+// Expose metrics for Prometheus
+app.get('/metrics', async (_req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    res.end(await register.metrics());
+  } catch (ex) {
+    res.status(500).end(ex);
+  }
+});
+
 app.use('/api/v1', appRoutes);
 
 // ═══════════════════════════════════════════════════
@@ -70,7 +85,6 @@ app.use(errorHandler);
 const PORT = parseInt(env.PORT, 10);
 
 async function bootstrap() {
-  // Connect to Redis (non-blocking — app works without it via DB fallback)
   await connectRedis();
 
   app.listen(PORT, '0.0.0.0', () => {
@@ -87,9 +101,20 @@ bootstrap().catch((err) => {
 // ═══════════════════════════════════════════════════
 // 8️⃣ Graceful Shutdown
 // ═══════════════════════════════════════════════════
+import { emailWorker } from './jobs/workers/email.worker.js';
+
 const gracefulShutdown = async () => {
   logger.info('Shutting down gracefully...');
+  
+  // 1. Stop accepting new jobs and wait for active jobs to finish
+  logger.info('Stopping BullMQ Workers...');
+  await emailWorker.close(); 
+  
+  // 2. Disconnect Redis safely
+  logger.info('Disconnecting Redis...');
   await disconnectRedis();
+  
+  logger.info('Shutdown complete.');
   process.exit(0);
 };
 

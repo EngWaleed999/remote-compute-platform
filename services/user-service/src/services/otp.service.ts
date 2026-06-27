@@ -23,6 +23,7 @@ import { hashToken } from '../utils/token.util.js';
 import { OTP_LENGTH, OTP_MAX_ATTEMPTS } from '../constants/otp.constanst.js';
 import { logger } from '../config/logger.js';
 import { AppError } from '@repo/shared-utils';
+import { jobService } from './job.service.js';
 
 class OtpService {
 
@@ -95,8 +96,8 @@ class OtpService {
     // 7. Set cooldown — BEFORE email to prevent spam even if email fails
     await otpRepository.setCooldown(userId, cooldownDuration);
 
-    // 8. Send email with plaintext OTP
-    await emailService.sendEmailVerifiy(email, otp);
+    // 8. Send email with plaintext OTP (via Background Job Queue Adapter)
+    await jobService.enqueueSendOtpEmail({ to: email, otp });
 
     logger.info({
       message: 'OTP requested successfully',
